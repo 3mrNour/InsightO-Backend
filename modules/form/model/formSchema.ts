@@ -13,8 +13,6 @@ export interface IForm extends Document {
   questions: Types.ObjectId[];
   is_anonymous: boolean;
   is_active: boolean;
-  start_date?: Date;
-  end_date?: Date;
   department_id?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -54,8 +52,7 @@ const formSchema = new Schema<IForm>({
   is_anonymous: { type: Boolean, default: false },
   is_active: { type: Boolean, default: true },
   
-  start_date: { type: Date },
-  end_date: { type: Date },
+ 
   
   department_id: { 
     type: Schema.Types.ObjectId, 
@@ -68,7 +65,11 @@ const formSchema = new Schema<IForm>({
 });
 
 // Indexing
-formSchema.index({ creator_id: 1, department_id: 1 });
+
+formSchema.index(
+  { title: 1, creator_id: 1, department_id: 1 },
+  { unique: true }
+);
 
 const Form = mongoose.model<IForm>('Form', formSchema);
 export default Form;

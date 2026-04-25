@@ -1,0 +1,300 @@
+{
+  "info": {
+    "_postman_id": "insightO-auth-collection",
+    "name": "InsightO Auth API",
+    "description": "Authentication API endpoints for InsightO Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Register",
+      "item": [
+        {
+          "name": "Register Step 1 (Create User & Send OTP)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    pm.environment.set('user_email', pm.response.json().email);",
+                  "    console.log('User email saved: ' + pm.response.json().email);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePassword123\",\n  \"role\": \"STUDENT\",\n  \"nationalId\": \"12345678901234\",\n  \"academicYear\": 2024\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "register"
+              ]
+            },
+            "description": "Register a new user and send OTP to email.\n\nRequired fields:\n- firstName (min 2 chars)\n- lastName (min 2 chars)\n- email (valid email format)\n- password (min 8 chars)\n- nationalId (exactly 14 digits)\n- role (ADMIN, HEAD_OF_DEP, INSTRUCTOR, STUDENT)\n- academicYear (for STUDENT role)\n\nFor non-ADMIN roles, departmentId is also required."
+          },
+          "response": []
+        },
+        {
+          "name": "Register Step 2 (Verify OTP)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.environment.set('auth_token', pm.response.json().token);",
+                  "    console.log('Token saved: ' + pm.response.json().token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{user_email}}\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/register/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "register",
+                "verify"
+              ]
+            },
+            "description": "Verify OTP sent to email during registration. Once verified, user account is activated."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePassword123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/login",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "login"
+          ]
+        },
+        "description": "Login with email and password. Returns JWT token valid for 7 days."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    pm.environment.set('auth_token', pm.response.json().token);",
+              "    console.log('Token saved: ' + pm.response.json().token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Forgot Password",
+      "item": [
+        {
+          "name": "Forgot Password Step 1 (Send OTP)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.environment.set('reset_email', pm.response.json().email);",
+                  "    console.log('Reset email saved: ' + pm.response.json().email);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/forgotPassword",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "forgotPassword"
+              ]
+            },
+            "description": "Request password reset. Sends OTP to registered email."
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot Password Step 2 (Reset Password)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{reset_email}}\",\n  \"otp\": \"123456\",\n  \"password\": \"NewPassword123\",\n  \"confirmPassword\": \"NewPassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/resetPassword",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "resetPassword"
+              ]
+            },
+            "description": "Reset password after OTP verification. Password and confirmPassword must match."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Protected Routes",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/profile",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "profile"
+              ]
+            },
+            "description": "Get authenticated user's profile. Requires valid JWT token in Authorization header."
+          },
+          "response": []
+        },
+        {
+          "name": "Admin Area (ADMIN/SUPER ADMIN only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/admin",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "admin"
+              ]
+            },
+            "description": "Access admin area. Only accessible to users with ADMIN or SUPER ADMIN role."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000",
+      "type": "string",
+      "description": "Base URL for the InsightO API"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT authentication token (auto-populated after login)"
+    },
+    {
+      "key": "user_email",
+      "value": "",
+      "type": "string",
+      "description": "Registered user email (auto-populated after registration)"
+    },
+    {
+      "key": "reset_email",
+      "value": "",
+      "type": "string",
+      "description": "Email for password reset (auto-populated after forgot password)"
+    }
+  ]
+}

@@ -15,7 +15,7 @@ export interface IQuestion extends Document {
   required: boolean;
   options?: string[];
   order: number;
-  ai_tag?: string;
+  
 }
 
 const questionSchema = new Schema<IQuestion>({
@@ -51,12 +51,13 @@ const questionSchema = new Schema<IQuestion>({
     required: true
   },
 
-  ai_tag: {
-    type: String
-  }
+ 
 
 }, { timestamps: true });
 
-questionSchema.index({ form_id: 1, order: 1 });
+questionSchema.index(
+  { form_id: 1, order: 1 },
+  { unique: true }
+);
 
 export default mongoose.model<IQuestion>('Question', questionSchema);
