@@ -12,7 +12,7 @@ const port = Number(process.env.PORT) || 5000;
 const app = createApp();
 
 // GLOBAL MIDDLEWARES FOR ROUTE NOT FOUND
-app.all("*", (_req, _res, next) => {
+app.all(/.*/, (_req, _res, next) => {
   const err = new Error('Route Not Found') as Error & { status: number };
   err.status = 404;
   next(err);

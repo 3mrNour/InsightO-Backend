@@ -1,6 +1,6 @@
 // src/utils/upload/multerConfig.ts
 
-import multer, { FileFilterCallback } from "multer";
+import multer, { type FileFilterCallback } from "multer";
 import path from "path";
 import fs from "fs";
 import type { Request } from "express";
@@ -29,10 +29,10 @@ if (!fs.existsSync(UPLOAD_DIR)) {
  * - filename: unique timestamp-based name
  */
 const storage = multer.diskStorage({
-  destination: (_req: Request, _file: Express.Multer.File, cb) => {
+  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     cb(null, UPLOAD_DIR);
   },
-  filename: (_req: Request, file: Express.Multer.File, cb) => {
+  filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     const ext = path.extname(file.originalname).toLowerCase();
     const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
     cb(null, uniqueName);
