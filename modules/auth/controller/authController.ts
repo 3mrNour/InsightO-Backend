@@ -5,6 +5,10 @@ import jwt from 'jsonwebtoken';
 import bcryptjs from 'bcryptjs';
 import { AppError } from '../../../utils/AppError.js';
 import sendEmail from '../../../utils/Email.js';
+import StudentProfile from '../../profile/model/StudentProfile.js';
+import InstructorProfile from '../../profile/model/InstructorProfile.js';
+import HODProfile from '../../profile/model/HODProfile.js';
+import { UserSchema } from '../../../utils/User.js';
 
 const generateToken = (id: string, role: string) => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET || 'fallback_secret', {
@@ -17,7 +21,7 @@ const generateToken = (id: string, role: string) => {
 
 export const register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { firstName, lastName, email, password, role, nationalId, departmentId, academicYear } = req.body;
+    const { firstName, lastName, email, password, role, nationalId } = req.body;
 
     // Check if user exists in Users or PendingUser
     const [existingUser, existingPending] = await Promise.all([
@@ -44,8 +48,6 @@ export const register = async (req: Request, res: Response, next: NextFunction):
       password: hashedPassword,
       role: role || 'STUDENT',
       nationalId,
-      departmentId,
-      academicYear,
       otp,
       otpExpires
     });
@@ -186,8 +188,6 @@ export const resetPassword = async (req: Request, res: Response) => {
   }
 
   user.password = await bcryptjs.hash(password, 10);
-  user.confirmPassword = confirmPassword; 
-  
   await user.save();
 
   res.status(200).json({
@@ -210,45 +210,110 @@ export const verifyOTP = async (req: Request, res: Response) => {
     if (pendingUser.otp !== otp || !pendingUser.otpExpires || Date.now() > pendingUser.otpExpires.getTime()) {
       throw new AppError('Invalid or expired OTP', 400);
     }
-    // Prepare user data (exclude _id, otp, otpExpires)
-    const userData = pendingUser.toObject();
-    delete userData._id;
-    delete userData.otp;
-    delete userData.otpExpires;
-    delete userData.createdAt;
-    delete userData.updatedAt;
-    // Transaction: create user, delete pending
-    const session = await PendingUser.startSession();
-    session.startTransaction();
-    try {
-      const user = await User.create([userData], { session });
-      await PendingUser.deleteOne({ email }, { session });
-      await session.commitTransaction();
-      session.endSession();
-      // Generate JWT
-      const token = jwt.sign({ id: user[0]._id, role: user[0].role }, process.env.JWT_SECRET || 'fallback_secret', { expiresIn: '7d' });
-      return res.status(200).json({
-        status: 'success',
-        data: {  
-          token,
-          user: {
-            id: user[0]._id,
-            firstName: user[0].firstName,
-            lastName: user[0].lastName,
-            email: user[0].email,
-            role: user[0].role
-          }
-        }
-      });
-    } catch (err) {
-      await session.abortTransaction();
-      session.endSession();
-      throw err;
-    }
+    pendingUser.otp = '';
+    pendingUser.otpExpires = new Date(0);
+    pendingUser.otpVerified = true;
+    pendingUser.approvalStatus = 'PENDING_ADMIN_APPROVAL';
+    await pendingUser.save({ validateBeforeSave: false });
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'OTP verified successfully. Your account is pending admin approval.'
+    });
   } catch (error: any) {
     if (error instanceof AppError) {
       return res.status(error.statusCode).json({ status: error.status, message: error.message });
     }
     return res.status(500).json({ status: 'error', message: error.message });
+  }
+};
+
+export const approvePendingUser = async (req: Request, res: Response, next: NextFunction): Promise<Response | void> => {
+  const { pendingUserId } = req.params;
+  const { academicYear, departmentId } = req.body;
+
+  const session = await PendingUser.startSession();
+  session.startTransaction();
+
+  try {
+    const pendingUser = await PendingUser.findById(pendingUserId).session(session);
+    if (!pendingUser) {
+      throw new AppError('Pending user not found', 404);
+    }
+
+    if (!pendingUser.otpVerified || pendingUser.approvalStatus !== 'PENDING_ADMIN_APPROVAL') {
+      throw new AppError('Pending user is not ready for admin approval', 400);
+    }
+
+    if (pendingUser.role === UserSchema.STUDENT && !academicYear) {
+      throw new AppError('academicYear is required when approving STUDENT', 400);
+    }
+
+    if (
+      (pendingUser.role === UserSchema.INSTRUCTOR || pendingUser.role === UserSchema.HOD) &&
+      !departmentId
+    ) {
+      throw new AppError('departmentId is required when approving INSTRUCTOR/HOD', 400);
+    }
+
+    const user = await User.create([{
+      firstName: pendingUser.firstName,
+      lastName: pendingUser.lastName,
+      email: pendingUser.email,
+      password: pendingUser.password,
+      nationalId: pendingUser.nationalId,
+      role: pendingUser.role,
+      isVerified: true,
+      isActive: true,
+    }], { session });
+
+    if (pendingUser.role === UserSchema.STUDENT) {
+      await StudentProfile.create([{
+        userId: user[0]._id,
+        academicYear: Number(academicYear),
+        enrolledCourses: [],
+      }], { session });
+    }
+
+    if (pendingUser.role === UserSchema.INSTRUCTOR) {
+      await InstructorProfile.create([{
+        userId: user[0]._id,
+        departmentId,
+        teachingCourses: [],
+      }], { session });
+    }
+
+    if (pendingUser.role === UserSchema.HOD) {
+      await HODProfile.create([{
+        userId: user[0]._id,
+        departmentId,
+      }], { session });
+    }
+
+    pendingUser.approvalStatus = 'APPROVED';
+    await pendingUser.save({ session, validateBeforeSave: false });
+    await PendingUser.deleteOne({ _id: pendingUser._id }, { session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(201).json({
+      status: 'success',
+      message: 'Pending user approved successfully',
+      data: {
+        user: {
+          id: user[0]._id,
+          firstName: user[0].firstName,
+          lastName: user[0].lastName,
+          email: user[0].email,
+          role: user[0].role,
+        },
+      },
+    });
+  } catch (error: any) {
+    await session.abortTransaction();
+    session.endSession();
+    next(new AppError(error.message || 'Failed to approve pending user', error.statusCode || 500));
+    return;
   }
 };

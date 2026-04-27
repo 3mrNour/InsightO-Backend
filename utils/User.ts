@@ -1,6 +1,7 @@
 export  enum UserSchema {
   ADMIN=  'ADMIN',
-  HEAD_OF_DEP = 'HEAD_OF_DEP',
+  HOD = 'HOD',
+  HEAD_OF_DEP = 'HOD',
   INSTRUCTOR = 'INSTRUCTOR',
   STUDENT = 'STUDENT'
 };

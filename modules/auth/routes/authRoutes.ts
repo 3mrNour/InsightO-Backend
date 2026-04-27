@@ -56,7 +56,8 @@ import {
   resetPassword,
   registerStepOneResponse,
   forgotPasswordStepOneResponse,
-  verifyOTP // الكنترولر المسؤول عن نقل البيانات من التيمب للأصلي
+  verifyOTP, // الكنترولر المسؤول عن نقل البيانات من التيمب للأصلي
+  approvePendingUser
 } from '../controller/authController.js';
 
 import { protect, authorizeRoles } from '../../../middlewares/authMiddleware.js';
@@ -104,5 +105,7 @@ router.patch(
 router.get('/profile', protect, (req, res) => {
   res.status(200).json({ status: 'success', user: (req as any).user });
 });
+
+router.post('/admin/pending/:pendingUserId/approve', protect, authorizeRoles('ADMIN'), approvePendingUser);
 
 export default router;
