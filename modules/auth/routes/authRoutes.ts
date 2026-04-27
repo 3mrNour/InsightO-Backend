@@ -57,7 +57,8 @@ import {
   registerStepOneResponse,
   forgotPasswordStepOneResponse,
   verifyOTP, // الكنترولر المسؤول عن نقل البيانات من التيمب للأصلي
-  approvePendingUser
+  approvePendingUser,
+  getPendingUsersForAdmin
 } from '../controller/authController.js';
 
 import { protect, authorizeRoles } from '../../../middlewares/authMiddleware.js';
@@ -107,5 +108,6 @@ router.get('/profile', protect, (req, res) => {
 });
 
 router.post('/admin/pending/:pendingUserId/approve', protect, authorizeRoles('ADMIN'), approvePendingUser);
+router.get('/admin/pending-users', protect, authorizeRoles('ADMIN'), getPendingUsersForAdmin);
 
 export default router;

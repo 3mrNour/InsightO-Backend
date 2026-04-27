@@ -3,6 +3,7 @@ import mongoose, { Schema, type Document, type Types } from "mongoose";
 export interface IStudentProfile extends Document {
   userId: Types.ObjectId;
   academicYear: number;
+  departmentId: Types.ObjectId;
   enrolledCourses: Types.ObjectId[];
 }
 
@@ -16,6 +17,11 @@ const studentProfileSchema = new Schema<IStudentProfile>(
     },
     academicYear: {
       type: Number,
+      required: true,
+    },
+    departmentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Department",
       required: true,
     },
     enrolledCourses: [

@@ -57,8 +57,24 @@ const submissionSchema = new Schema<ISubmission>(
 
 /**
  * Prevent duplicate submissions.
- * Each student (evaluator) can submit a specific form only once.
+ * Each evaluator can submit once per (form, subject) pair.
  */
-submissionSchema.index({ form_id: 1, evaluator_id: 1 }, { unique: true });
+submissionSchema.index(
+  { form_id: 1, evaluator_id: 1, subject_id: 1 },
+  { unique: true, name: 'form_evaluator_subject_unique' },
+);
+
+// Backward-compat cleanup: remove the old two-field unique index if present.
+submissionSchema.on('init', async (model: mongoose.Model<ISubmission>) => {
+  try {
+    const indexes = await model.collection.indexes();
+    const legacyIndex = indexes.find((index) => index.name === 'form_id_1_evaluator_id_1');
+    if (legacyIndex) {
+      await model.collection.dropIndex('form_id_1_evaluator_id_1');
+    }
+  } catch {
+    // Ignore index cleanup failures; schema index creation still proceeds.
+  }
+});
 
 export default mongoose.model<ISubmission>('Submission', submissionSchema);

@@ -1,736 +1,545 @@
 {
   "info": {
-    "_postman_id": "c7d861ec-6f5d-4ac0-a28d-98e50f8ad5bb",
-    "name": "InsightO Backend - All Endpoints",
-    "description": "Comprehensive collection for all endpoints defined in the current backend codebase. Includes active routes and question routes that are currently not mounted in app.ts.",
+    "name": "InsightO Backend - Ordered Endpoint Tests",
+    "_postman_id": "d3e9d85e-63ec-4f1a-a7ab-2f36d8a6bd9a",
+    "description": "Run requests top-to-bottom. This collection is ordered to match the current backend flow (auth, admin approval, forms/questions, submissions, upload, admin CRUD).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "adminEmail", "value": "admin@insighto.com" },
+    { "key": "adminPassword", "value": "Admin12345" },
+    { "key": "studentEmail", "value": "student1@insighto.com" },
+    { "key": "studentPassword", "value": "Student12345" },
+    { "key": "studentNationalId", "value": "30301234567890" },
+    { "key": "registerOtp", "value": "000000" },
+    { "key": "resetOtp", "value": "000000" },
+    { "key": "newPassword", "value": "Student12345" },
+    { "key": "adminToken", "value": "" },
+    { "key": "studentToken", "value": "" },
+    { "key": "token", "value": "" },
+    { "key": "pendingUserId", "value": "" },
+    { "key": "departmentId", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "formId", "value": "" },
+    { "key": "questionId", "value": "" },
+    { "key": "subjectId", "value": "" },
+    { "key": "uploadFilePath", "value": "" }
+  ],
   "item": [
     {
-      "name": "System",
-      "item": [
+      "name": "0) Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "1) Register Student (PendingUser + OTP)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstName\": \"Student\",\n  \"lastName\": \"One\",\n  \"email\": \"{{studentEmail}}\",\n  \"password\": \"{{studentPassword}}\",\n  \"nationalId\": \"{{studentNationalId}}\",\n  \"role\": \"STUDENT\"\n}"
+        },
+        "url": "{{baseUrl}}/api/register"
+      }
+    },
+    {
+      "name": "2) Verify Register OTP (Move to Pending Admin Approval)",
+      "event": [
         {
-          "name": "Health Check",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "pm.test('Response has ok=true', function () {",
-                  "  const json = pm.response.json();",
-                  "  pm.expect(json.ok).to.eql(true);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{base_url}}/health",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "health"
-              ]
-            },
-            "description": "Service health endpoint."
-          },
-          "response": []
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const data = pm.response.json();",
+              "pm.test('OTP verify success', function () {",
+              "  pm.expect(pm.response.code).to.be.oneOf([200]);",
+              "});"
+            ]
+          }
         }
-      ]
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{studentEmail}}\",\n  \"otp\": \"{{registerOtp}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/register/verify"
+      }
     },
     {
-      "name": "Auth",
-      "item": [
+      "name": "3) Admin Login",
+      "event": [
         {
-          "name": "Register - Step 1",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 201', function () {",
-                  "  pm.response.to.have.status(201);",
-                  "});",
-                  "const json = pm.response.json();",
-                  "if (json.email) pm.collectionVariables.set('register_email', json.email);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"firstName\": \"Test\",\n  \"lastName\": \"User\",\n  \"email\": \"{{register_email}}\",\n  \"password\": \"SecurePass123\",\n  \"role\": \"STUDENT\",\n  \"nationalId\": \"12345678901234\",\n  \"academicYear\": 2026\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/register",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "register"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Register - Verify OTP (Step 2)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "const json = pm.response.json();",
-                  "if (json?.data?.token) {",
-                  "  pm.collectionVariables.set('auth_token', json.data.token);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{register_email}}\",\n  \"otp\": \"{{otp_code}}\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/register/verify",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "register",
-                "verify"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Login",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "const json = pm.response.json();",
-                  "if (json.token) {",
-                  "  pm.collectionVariables.set('auth_token', json.token);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{login_email}}\",\n  \"password\": \"{{login_password}}\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/login",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "login"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Forgot Password - Send OTP",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "const json = pm.response.json();",
-                  "if (json.email) pm.collectionVariables.set('reset_email', json.email);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{login_email}}\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/forgotPassword",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "forgotPassword"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Reset Password",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{reset_email}}\",\n  \"otp\": \"{{otp_code}}\",\n  \"password\": \"{{new_password}}\",\n  \"confirmPassword\": \"{{new_password}}\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/resetPassword",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "resetPassword"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Profile (Protected)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/profile",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "profile"
-              ]
-            }
-          },
-          "response": []
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.token) pm.collectionVariables.set('adminToken', json.token);",
+              "if (json.user && json.user.id) pm.collectionVariables.set('subjectId', json.user.id);",
+              "pm.test('Admin token captured', function () {",
+              "  pm.expect(pm.collectionVariables.get('adminToken')).to.not.eql('');",
+              "});"
+            ]
+          }
         }
-      ]
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/login"
+      }
     },
     {
-      "name": "Forms (Active Routes)",
-      "item": [
+      "name": "4) Admin - Create Department (Auto-capture departmentId)",
+      "event": [
         {
-          "name": "Create Form",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 201', function () {",
-                  "  pm.response.to.have.status(201);",
-                  "});",
-                  "const json = pm.response.json();",
-                  "const id = json?.data?._id || json?.data?.id;",
-                  "if (id) pm.collectionVariables.set('form_id', id);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"title\": \"Instructor Evaluation 2026\",\n  \"description\": \"Collect feedback for instructors\",\n  \"evaluator_roles\": [\"STUDENT\"],\n  \"subject_role\": \"INSTRUCTOR\",\n  \"is_anonymous\": true,\n  \"is_active\": true\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/form",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "form"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get All Forms",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});",
-                  "const json = pm.response.json();",
-                  "if (Array.isArray(json?.data) && json.data.length > 0) {",
-                  "  const id = json.data[0]?._id || json.data[0]?.id;",
-                  "  if (id) pm.collectionVariables.set('form_id', id);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/form",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "form"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Form By ID",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/form/{{form_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "form",
-                "{{form_id}}"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Update Form Settings",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"is_active\": true,\n  \"description\": \"Updated description from Postman\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/form/{{form_id}}/settings",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "form",
-                "{{form_id}}",
-                "settings"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Form",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "pm.test('Status is 200', function () {",
-                  "  pm.response.to.have.status(200);",
-                  "});"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/form/{{form_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "form",
-                "{{form_id}}"
-              ]
-            }
-          },
-          "response": []
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "const dept = json.data || {};",
+              "if (dept._id) pm.collectionVariables.set('departmentId', dept._id);",
+              "pm.test('departmentId captured', function () {",
+              "  pm.expect(pm.collectionVariables.get('departmentId')).to.not.eql('');",
+              "});"
+            ]
+          }
         }
-      ]
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Computer Science\",\n  \"code\": \"CS\",\n  \"description\": \"Department of Computer Science\"\n}"
+        },
+        "url": "{{baseUrl}}/api/admin/departments"
+      },
+      "response": []
     },
     {
-      "name": "Questions (Defined but Not Mounted)",
-      "description": "These routes exist in modules/question/routes/questionRout.ts but are not mounted in app.ts. Requests are ready for when router mounting is added.",
-      "item": [
+      "name": "5) Admin - List Pending Users (Auto-capture pendingUserId)",
+      "event": [
         {
-          "name": "Create Question",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"label\": \"Rate teaching quality\",\n  \"type\": \"linear_scale\",\n  \"required\": true,\n  \"scale\": { \"min\": 1, \"max\": 5 },\n  \"order\": 1\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/form/{{form_id}}/questions",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "form",
-                "{{form_id}}",
-                "questions"
-              ]
-            },
-            "description": "Expected mounted path may differ depending on future app.use(...) configuration."
-          },
-          "response": []
-        },
-        {
-          "name": "Get Questions",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/form/{{form_id}}/questions",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "form",
-                "{{form_id}}",
-                "questions"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Update Question",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"label\": \"Updated label\"\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/form/questions/{{question_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "form",
-                "questions",
-                "{{question_id}}"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Delete Question",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/api/v1/form/questions/{{question_id}}",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "form",
-                "questions",
-                "{{question_id}}"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Reorder Questions",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{auth_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "[\n  { \"id\": \"{{question_id}}\", \"order\": 1 }\n]"
-            },
-            "url": {
-              "raw": "{{base_url}}/api/v1/form/{{form_id}}/questions/reorder",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "form",
-                "{{form_id}}",
-                "questions",
-                "reorder"
-              ]
-            }
-          },
-          "response": []
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "const pending = (json.data && json.data[0]) ? json.data[0] : null;",
+              "if (pending && pending._id) pm.collectionVariables.set('pendingUserId', pending._id);",
+              "pm.test('pendingUserId is captured', function () {",
+              "  pm.expect(pm.collectionVariables.get('pendingUserId')).to.not.eql('');",
+              "});"
+            ]
+          }
         }
-      ]
-    }
-  ],
-  "variable": [
-    {
-      "key": "base_url",
-      "value": "http://localhost:5000",
-      "type": "string"
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": "{{baseUrl}}/api/admin/pending-users"
+      },
+      "response": []
     },
     {
-      "key": "auth_token",
-      "value": "",
-      "type": "string"
+      "name": "6) Admin Approve Pending User",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.data && json.data.user && json.data.user.id) {",
+              "  pm.collectionVariables.set('userId', json.data.user.id);",
+              "}",
+              "pm.test('Approved userId stored', function () {",
+              "  pm.expect(pm.collectionVariables.get('userId')).to.not.eql('');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"academicYear\": 3,\n  \"departmentId\": \"{{departmentId}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/admin/pending/{{pendingUserId}}/approve"
+      }
     },
     {
-      "key": "register_email",
-      "value": "test.user+1@example.com",
-      "type": "string"
+      "name": "7) Student Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "if (json.token) pm.collectionVariables.set('studentToken', json.token);",
+              "if (json.user && json.user.id) pm.collectionVariables.set('userId', json.user.id);",
+              "pm.collectionVariables.set('token', pm.collectionVariables.get('studentToken'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{studentEmail}}\",\n  \"password\": \"{{studentPassword}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/login"
+      }
     },
     {
-      "key": "login_email",
-      "value": "test.user+1@example.com",
-      "type": "string"
+      "name": "8) Get My Profile",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/api/profile"
+      }
     },
     {
-      "key": "login_password",
-      "value": "SecurePass123",
-      "type": "string"
+      "name": "9) Create Form (Admin/HOD/Instructor Token Required)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "const form = json.data || json.form || {};",
+              "if (form._id) pm.collectionVariables.set('formId', form._id);",
+              "if (form.subject_id) pm.collectionVariables.set('subjectId', form.subject_id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Instructor Evaluation Form\",\n  \"description\": \"Course-end evaluation\",\n  \"evaluator_roles\": [\"STUDENT\"],\n  \"subject_role\": \"INSTRUCTOR\",\n  \"questions\": [],\n  \"is_anonymous\": false,\n  \"is_active\": true\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/form/"
+      }
     },
     {
-      "key": "new_password",
-      "value": "SecurePass456",
-      "type": "string"
+      "name": "10) Get Forms",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": "{{baseUrl}}/api/v1/form/"
+      }
     },
     {
-      "key": "otp_code",
-      "value": "",
-      "type": "string"
+      "name": "11) Get Form By ID",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": "{{baseUrl}}/api/v1/form/{{formId}}"
+      }
     },
     {
-      "key": "reset_email",
-      "value": "test.user+1@example.com",
-      "type": "string"
+      "name": "12) Create Question",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "const q = json.data || {};",
+              "if (q._id) pm.collectionVariables.set('questionId', q._id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"label\": \"Rate your instructor clarity\",\n  \"type\": \"linear_scale\",\n  \"ai_tag\": \"clarity\",\n  \"required\": true,\n  \"order\": 1\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/questions/{{formId}}/questions"
+      }
     },
     {
-      "key": "form_id",
-      "value": "",
-      "type": "string"
+      "name": "13) Get Questions for Form",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": "{{baseUrl}}/api/v1/questions/{{formId}}/questions"
+      }
     },
     {
-      "key": "question_id",
-      "value": "",
-      "type": "string"
+      "name": "14) Update Question",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"label\": \"Rate instructor clarity and pace\",\n  \"ai_tag\": \"clarity_pace\"\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/questions/questions/{{questionId}}"
+      }
+    },
+    {
+      "name": "15) Reorder Questions",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "[\n  {\n    \"id\": \"{{questionId}}\",\n    \"order\": 1\n  }\n]"
+        },
+        "url": "{{baseUrl}}/api/v1/questions/{{formId}}/questions/reorder"
+      }
+    },
+    {
+      "name": "16) Update Form Settings",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"is_active\": true,\n  \"is_anonymous\": false\n}"
+        },
+        "url": "{{baseUrl}}/api/v1/form/{{formId}}/settings"
+      }
+    },
+    {
+      "name": "17) Create Submission (Student)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"subject_id\": \"{{subjectId}}\",\n  \"answers\": [\n    {\n      \"question_id\": \"{{questionId}}\",\n      \"value\": 4\n    }\n  ]\n}"
+        },
+        "url": "{{baseUrl}}/api/forms/{{formId}}/submissions"
+      }
+    },
+    {
+      "name": "18) Upload File (Protected)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "{{uploadFilePath}}"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/upload/"
+      }
+    },
+    {
+      "name": "19) Admin - List All Users",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": "{{baseUrl}}/api/admin/users"
+      }
+    },
+    {
+      "name": "20) Admin - Get User Detail",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": "{{baseUrl}}/api/admin/users/{{userId}}"
+      }
+    },
+    {
+      "name": "21) Admin - Unified Update User + Profile",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"firstName\": \"StudentUpdated\",\n  \"role\": \"STUDENT\",\n  \"academicYear\": 4,\n  \"departmentId\": \"{{departmentId}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/admin/users/{{userId}}"
+      }
+    },
+    {
+      "name": "22) Forgot Password",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{studentEmail}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/forgotPassword"
+      }
+    },
+    {
+      "name": "23) Reset Password",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{studentEmail}}\",\n  \"otp\": \"{{resetOtp}}\",\n  \"password\": \"{{newPassword}}\",\n  \"confirmPassword\": \"{{newPassword}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/resetPassword"
+      }
+    },
+    {
+      "name": "24) Delete Question",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": "{{baseUrl}}/api/v1/questions/questions/{{questionId}}"
+      }
+    },
+    {
+      "name": "25) Delete Form",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": "{{baseUrl}}/api/v1/form/{{formId}}"
+      }
+    },
+    {
+      "name": "26) Admin - Cascade Delete User",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": "{{baseUrl}}/api/admin/users/{{userId}}"
+      }
+    },
+    {
+      "name": "27) Admin - List Departments",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": "{{baseUrl}}/api/admin/departments"
+      }
+    },
+    {
+      "name": "28) Admin - Get Department By ID",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": "{{baseUrl}}/api/admin/departments/{{departmentId}}"
+      }
+    },
+    {
+      "name": "29) Admin - Update Department",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"description\": \"Updated Department Description\"\n}"
+        },
+        "url": "{{baseUrl}}/api/admin/departments/{{departmentId}}"
+      }
+    },
+    {
+      "name": "30) Admin - Delete Department",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "url": "{{baseUrl}}/api/admin/departments/{{departmentId}}"
+      }
     }
   ]
 }

@@ -8,6 +8,7 @@ import sendEmail from '../../../utils/Email.js';
 import StudentProfile from '../../profile/model/StudentProfile.js';
 import InstructorProfile from '../../profile/model/InstructorProfile.js';
 import HODProfile from '../../profile/model/HODProfile.js';
+import Department from '../../department/model/Department.js';
 import { UserSchema } from '../../../utils/User.js';
 
 const generateToken = (id: string, role: string) => {
@@ -236,7 +237,7 @@ export const approvePendingUser = async (req: Request, res: Response, next: Next
   session.startTransaction();
 
   try {
-    const pendingUser = await PendingUser.findById(pendingUserId).session(session);
+    const pendingUser = await PendingUser.findById(pendingUserId).select('+password').session(session);
     if (!pendingUser) {
       throw new AppError('Pending user not found', 404);
     }
@@ -245,8 +246,8 @@ export const approvePendingUser = async (req: Request, res: Response, next: Next
       throw new AppError('Pending user is not ready for admin approval', 400);
     }
 
-    if (pendingUser.role === UserSchema.STUDENT && !academicYear) {
-      throw new AppError('academicYear is required when approving STUDENT', 400);
+    if (pendingUser.role === UserSchema.STUDENT && (academicYear === undefined || !departmentId)) {
+      throw new AppError('academicYear and departmentId are required when approving STUDENT', 400);
     }
 
     if (
@@ -254,6 +255,13 @@ export const approvePendingUser = async (req: Request, res: Response, next: Next
       !departmentId
     ) {
       throw new AppError('departmentId is required when approving INSTRUCTOR/HOD', 400);
+    }
+
+    if (departmentId) {
+      const department = await Department.findById(departmentId).session(session);
+      if (!department) {
+        throw new AppError('departmentId is invalid or department does not exist', 400);
+      }
     }
 
     const user = await User.create([{
@@ -271,6 +279,7 @@ export const approvePendingUser = async (req: Request, res: Response, next: Next
       await StudentProfile.create([{
         userId: user[0]._id,
         academicYear: Number(academicYear),
+        departmentId,
         enrolledCourses: [],
       }], { session });
     }
@@ -315,5 +324,22 @@ export const approvePendingUser = async (req: Request, res: Response, next: Next
     session.endSession();
     next(new AppError(error.message || 'Failed to approve pending user', error.statusCode || 500));
     return;
+  }
+};
+
+export const getPendingUsersForAdmin = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const pendingUsers = await PendingUser.find({
+      otpVerified: true,
+      approvalStatus: 'PENDING_ADMIN_APPROVAL',
+    }).select('-password -otp -otpExpires');
+
+    res.status(200).json({
+      status: 'success',
+      results: pendingUsers.length,
+      data: pendingUsers,
+    });
+  } catch (error) {
+    next(error);
   }
 };

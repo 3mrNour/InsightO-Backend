@@ -24,6 +24,7 @@ export interface IQuestion extends Document {
   form_id: Types.ObjectId;
   label: string;
   type: QuestionType;
+  ai_tag?: string;
   required: boolean;
   options?: string[];
   order: number;
@@ -66,6 +67,10 @@ const questionSchema = new Schema<IQuestion>(
       type: String,
       enum: ["short_text", "long_text", "linear_scale", "multiple_choice", "file"],
       required: true,
+    },
+
+    ai_tag: {
+      type: String,
     },
 
     required: {

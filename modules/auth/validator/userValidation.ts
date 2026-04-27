@@ -14,7 +14,7 @@ export const userRegisterSchema = z.object({
     nationalId: z.string().regex(nationalIdRegex, "National ID must be exactly 14 digits"),
     
     // الحل النهائي: نكتبهم كـ Tuple صريح عشان TypeScript يرتاح
-    role: z.enum(['ADMIN', 'HEAD_OF_DEP', 'INSTRUCTOR', 'STUDENT'],"Please select a valid user role"),
+    role: z.enum(['ADMIN', 'HOD', 'INSTRUCTOR', 'STUDENT'],"Please select a valid user role"),
     
     departmentId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ID").optional(),
     academicYear: z.number().optional()
