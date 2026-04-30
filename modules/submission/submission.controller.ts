@@ -3,8 +3,10 @@
 import type { Request, Response, NextFunction } from "express";
 import Submission from "./submission.model.js";
 import Question from "../question/models/Question_Schema.js";
+
 import { AppError } from "../../utils/AppError.js";
 import { asyncWrap } from "../../middlewares/asyncWrap.js";
+import Form from "../form/model/formSchema.js";
 
 /**
  * Validates an answer's value against its question's configuration.
@@ -46,7 +48,7 @@ const validateAnswerValue = (question: any, value: any) => {
       if (typeof value !== "object" || !value.url || !value.type) {
         throw new AppError(`Invalid file information for "${question.label}".`, 400);
       }
-      
+
       // Detailed file config validation (size & type)
       if (question.file_config) {
         const { allowed_types, max_size } = question.file_config;
@@ -66,67 +68,103 @@ const validateAnswerValue = (question: any, value: any) => {
  * Handles form response submission with comprehensive validation.
  */
 export const createSubmission = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
-  const { formId } = req.params;
+
+  const formId = req.params.formId as string;
   const evaluator_id = (req as any).user?._id;
   const { subject_id, answers } = req.body;
 
   if (!evaluator_id) {
-    return next(new AppError("User context missing. Please login again.", 401));
+    return next(new AppError("User context missing", 401));
   }
 
-  // 1. Fetch form questions to validate against
+  //  validate answers structure
+  if (!Array.isArray(answers) || answers.length === 0) {
+    return next(new AppError("Answers must be a non-empty array", 400));
+  }
+
+  // prevent duplicate answers
+  const seen = new Set();
+  for (const a of answers) {
+    if (seen.has(a.question_id)) {
+      return next(new AppError(`Duplicate answer for question ${a.question_id}`, 400));
+    }
+    seen.add(a.question_id);
+  }
+
+  // fetch form with populated questions
+  const form = await Form.findById(formId).populate({
+    path: 'questions',
+    select: 'label type required options ai_tag order'
+  });
+  if (!form) return next(new AppError("Form not found", 404));
+
+  //  check form state
+  if (!form.is_active) {
+    return next(new AppError("Form is not active", 400));
+  }
+
+  //  fetch questions
   const questions = await Question.find({ form_id: formId });
-  
-  if (!questions || questions.length === 0) {
-    return next(new AppError("The specific form does not exist or has no questions.", 404));
-  }
 
-  // Build map for efficient validation
   const questionMap = new Map(questions.map(q => [q._id.toString(), q]));
 
-  // 2. Cross-reference answers with question requirements
+  // validate answers
   for (const answer of answers) {
     const question = questionMap.get(answer.question_id);
 
     if (!question) {
-      return next(new AppError(`Invalid question reference: ${answer.question_id}`, 400));
+      return next(new AppError(`Invalid question ${answer.question_id}`, 400));
     }
 
-    try {
-      validateAnswerValue(question, answer.value);
-    } catch (err: any) {
-      return next(err);
+    validateAnswerValue(question, answer.value);
+  }
+
+  //  required questions
+  const answeredSet = new Set(answers.map(a => a.question_id));
+
+  for (const q of questions) {
+    if (q.required && !answeredSet.has(q._id.toString())) {
+      return next(new AppError(`Missing required question: ${q.label}`, 400));
     }
   }
 
-  // 3. Ensure all required questions were actually answered
-  for (const question of questions) {
-    if (question.required) {
-      const isAnswered = answers.some((a: any) => a.question_id === question._id.toString());
-      if (!isAnswered) {
-        return next(new AppError(`Required question missing: "${question.label}"`, 400));
-      }
-    }
-  }
+  // sanitize
+  const sanitizedAnswers = answers.map((a: any) => ({
+    question_id: a.question_id,
+    value: a.value
+  }));
 
-  // 4. Persistence
+  // save
   try {
     const submission = await Submission.create({
       form_id: formId,
       evaluator_id,
       subject_id,
-      answers,
+      answers: sanitizedAnswers,
     });
 
-    return res.status(201).json({
-      status: "success",
-      data: submission,
+    // Populate form with title, description, and questions for response
+    const populatedSubmission = await Submission.findById(submission._id).populate({
+      path: 'form_id',
+      select: 'title description label',
+      populate: {
+        path: 'questions',
+        select: 'label type required options ai_tag order'
+      }
+    }).populate({
+      path: 'answers.question_id',
+      select: 'label type required options'
     });
+
+    res.status(201).json({
+      status: "success",
+      data: populatedSubmission,
+    });
+
   } catch (error: any) {
-    // Handle uniqueness violation (User trying to submit twice)
     if (error.code === 11000) {
-      return next(new AppError("You have already submitted a response for this form.", 400));
+      return next(new AppError("Already submitted", 400));
     }
-    return next(error);
+    next(error);
   }
 });

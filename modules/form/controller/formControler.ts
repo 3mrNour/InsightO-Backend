@@ -42,6 +42,12 @@ export const getAllForms = async (req: Request, res: Response, next: NextFunctio
     const user = (req as any).user;
     const forms = await Form.find({
       creator_id: user._id
+    }).populate({
+      path: 'questions',
+      select: 'label title description type required options ai_tag order'
+    }).populate({
+      path: 'creator_id',
+      select: 'name email'
     });
     res.json({
       status: "success",
@@ -57,7 +63,13 @@ export const getFormById = async (req: Request, res: Response, next: NextFunctio
   try {
     const user = (req as any).user;
     const form = await Form.findById(req.params.id)
-      .populate("questions");
+      .populate({
+        path: 'questions',
+        select: 'label title description type required options ai_tag order'
+      }).populate({
+        path: 'creator_id',
+        select: 'name email'
+      });
     if (!form) {
       return next(new AppError("Form not found", 404));
     }
