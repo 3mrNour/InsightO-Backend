@@ -5,9 +5,11 @@ import StudentProfile, { type IStudentProfile } from '../../profile/model/Studen
 import InstructorProfile, { type IInstructorProfile } from '../../profile/model/InstructorProfile.js';
 import HODProfile, { type IHODProfile } from '../../profile/model/HODProfile.js';
 import Department from '../../department/model/Department.js';
-import Course from '../../course/model/Course.js';
+import Course from '../../course/course.model.js';
 import { AppError } from '../../../utils/AppError.js';
 import { UserSchema } from '../../../utils/User.js';
+import bcryptjs from 'bcryptjs';
+import { asyncWrap } from '../../../middlewares/asyncWrap.js';
 
 type UserRole = `${UserSchema}`;
 type ProfileDoc = IStudentProfile | IInstructorProfile | IHODProfile | null;
@@ -163,6 +165,69 @@ const createOrUpdateProfileByRole = async (
     );
   }
 };
+
+export const createAdminUser = asyncWrap(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { firstName, lastName, email, password, nationalId, role, departmentId, academicYear } = req.body;
+
+    // Check for existing user
+    const existingUser = await User.findOne({ $or: [{ email }, { nationalId }] }).session(session);
+    if (existingUser) {
+      throw new AppError('Email or National ID is already registered', 409);
+    }
+
+    const hashedPassword = await bcryptjs.hash(password, 10);
+
+    const newUser = await User.create([{
+      firstName,
+      lastName,
+      email,
+      password: hashedPassword,
+      nationalId,
+      role,
+      isActive: true,
+      isVerified: true,
+    }], { session });
+
+    // Create corresponding profile based on role
+    if (role === UserSchema.STUDENT) {
+      await StudentProfile.create([{
+        userId: newUser[0]._id,
+        departmentId,
+        academicYear,
+        enrolledCourses: [],
+      }], { session });
+    } else if (role === UserSchema.INSTRUCTOR) {
+      await InstructorProfile.create([{
+        userId: newUser[0]._id,
+        departmentId,
+        teachingCourses: [],
+      }], { session });
+    } else if (role === UserSchema.HOD) {
+      await HODProfile.create([{
+        userId: newUser[0]._id,
+        departmentId,
+      }], { session });
+    }
+
+    await session.commitTransaction();
+    session.endSession();
+
+    const userResponse = await mapUserWithProfile(newUser[0].toObject());
+
+    res.status(201).json({
+      status: 'success',
+      message: 'User created successfully',
+      data: userResponse
+    });
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    next(error);
+  }
+});
 
 export const listAdminUsers = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
