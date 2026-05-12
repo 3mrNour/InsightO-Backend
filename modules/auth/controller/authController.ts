@@ -233,97 +233,97 @@ export const approvePendingUser = async (req: Request, res: Response, next: Next
   const { pendingUserId } = req.params;
   const { academicYear, departmentId } = req.body;
 
-  const session = await PendingUser.startSession();
-  session.startTransaction();
-
   try {
-    const pendingUser = await PendingUser.findById(pendingUserId).select('+password').session(session);
+    const pendingUser = await PendingUser.findById(pendingUserId).select('+password');
     if (!pendingUser) {
-      throw new AppError('Pending user not found', 404);
+      return next(new AppError('Pending user not found', 404));
     }
 
     if (!pendingUser.otpVerified || pendingUser.approvalStatus !== 'PENDING_ADMIN_APPROVAL') {
-      throw new AppError('Pending user is not ready for admin approval', 400);
+      return next(new AppError('Pending user is not ready for admin approval', 400));
     }
 
     if (pendingUser.role === UserSchema.STUDENT && (academicYear === undefined || !departmentId)) {
-      throw new AppError('academicYear and departmentId are required when approving STUDENT', 400);
+      return next(new AppError('academicYear and departmentId are required when approving STUDENT', 400));
     }
 
     if (
       (pendingUser.role === UserSchema.INSTRUCTOR || pendingUser.role === UserSchema.HOD) &&
       !departmentId
     ) {
-      throw new AppError('departmentId is required when approving INSTRUCTOR/HOD', 400);
+      return next(new AppError('departmentId is required when approving INSTRUCTOR/HOD', 400));
     }
 
     if (departmentId) {
-      const department = await Department.findById(departmentId).session(session);
+      const department = await Department.findById(departmentId);
       if (!department) {
-        throw new AppError('departmentId is invalid or department does not exist', 400);
+        return next(new AppError('departmentId is invalid or department does not exist', 400));
       }
     }
 
-    const user = await User.create([{
-      firstName: pendingUser.firstName,
-      lastName: pendingUser.lastName,
-      email: pendingUser.email,
-      password: pendingUser.password,
-      nationalId: pendingUser.nationalId,
-      role: pendingUser.role,
-      isVerified: true,
-      isActive: true,
-    }], { session });
-
-    if (pendingUser.role === UserSchema.STUDENT) {
-      await StudentProfile.create([{
-        userId: user[0]._id,
-        academicYear: Number(academicYear),
-        departmentId,
-        enrolledCourses: [],
-      }], { session });
+    // Step 1: Create the User
+    let createdUser: InstanceType<typeof User> | null = null;
+    try {
+      createdUser = await User.create({
+        firstName: pendingUser.firstName,
+        lastName: pendingUser.lastName,
+        email: pendingUser.email,
+        password: pendingUser.password,
+        nationalId: pendingUser.nationalId,
+        role: pendingUser.role,
+        isVerified: true,
+        isActive: true,
+      });
+    } catch (userErr: any) {
+      return next(new AppError(userErr.message || 'Failed to create user', 500));
     }
 
-    if (pendingUser.role === UserSchema.INSTRUCTOR) {
-      await InstructorProfile.create([{
-        userId: user[0]._id,
-        departmentId,
-        teachingCourses: [],
-      }], { session });
+    // Step 2: Create the role-specific profile
+    try {
+      if (pendingUser.role === UserSchema.STUDENT) {
+        await StudentProfile.create({
+          userId: createdUser._id,
+          academicYear: Number(academicYear),
+          departmentId,
+          enrolledCourses: [],
+        });
+      } else if (pendingUser.role === UserSchema.INSTRUCTOR) {
+        await InstructorProfile.create({
+          userId: createdUser._id,
+          departmentId,
+          teachingCourses: [],
+        });
+      } else if (pendingUser.role === UserSchema.HOD) {
+        await HODProfile.create({
+          userId: createdUser._id,
+          departmentId,
+        });
+      }
+
+      // Step 3: Update pending user status and delete it
+      await PendingUser.deleteOne({ _id: pendingUser._id });
+
+    } catch (profileErr: any) {
+      // Rollback: remove the user if profile creation fails
+      await User.deleteOne({ _id: createdUser._id }).catch(() => {});
+      return next(new AppError(profileErr.message || 'Failed to create user profile', 500));
     }
-
-    if (pendingUser.role === UserSchema.HOD) {
-      await HODProfile.create([{
-        userId: user[0]._id,
-        departmentId,
-      }], { session });
-    }
-
-    pendingUser.approvalStatus = 'APPROVED';
-    await pendingUser.save({ session, validateBeforeSave: false });
-    await PendingUser.deleteOne({ _id: pendingUser._id }, { session });
-
-    await session.commitTransaction();
-    session.endSession();
 
     return res.status(201).json({
       status: 'success',
       message: 'Pending user approved successfully',
       data: {
         user: {
-          id: user[0]._id,
-          firstName: user[0].firstName,
-          lastName: user[0].lastName,
-          email: user[0].email,
-          role: user[0].role,
+          id: createdUser._id,
+          firstName: createdUser.firstName,
+          lastName: createdUser.lastName,
+          email: createdUser.email,
+          role: createdUser.role,
         },
       },
     });
   } catch (error: any) {
-    await session.abortTransaction();
-    session.endSession();
     next(new AppError(error.message || 'Failed to approve pending user', error.statusCode || 500));
-    return;
   }
 };
 
