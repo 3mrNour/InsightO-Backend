@@ -12,6 +12,7 @@ import departmentRoutes from "./modules/department/routes/departmentRoutes.js";
 import taskRoutes from "./modules/task/task.route.js";
 import taskSubmittionRoutes from "./modules/taskSubmittion/taskSubmittion.route.js";
 import courseRoutes from "./modules/course/course.route.js";
+import cycleRoutes from "./modules/cycle/cycle.route.js";
 
 export function createApp() {
   const app = express();
@@ -56,6 +57,9 @@ export function createApp() {
 
   // Task Submissions routes
   app.use("/api/task-submissions", taskSubmittionRoutes);
+
+  // Evaluation Cycle routes
+  app.use("/api/cycles", cycleRoutes);
 
   // ─── Error Handling ─────────────────────────────────────────────────────────
   app.use(errorHandler);

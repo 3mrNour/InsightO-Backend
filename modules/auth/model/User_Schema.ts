@@ -8,7 +8,8 @@ const user_Schema = new mongoose.Schema({
   lastName: { type: String, required: true, trim: true },
   email: { type: String, required: true, unique: true, lowercase: true },
   password: { type: String, required: true, minlength: 8, select: false },
-  nationalId: { type: Number, unique: true, required: true }, 
+  nationalId: { type: Number, unique: true, required: true },
+  profileImage: { type: String, default: '' },
   
   role: {
     type: String,
