@@ -58,7 +58,8 @@ import {
   forgotPasswordStepOneResponse,
   verifyOTP, // الكنترولر المسؤول عن نقل البيانات من التيمب للأصلي
   approvePendingUser,
-  getPendingUsersForAdmin
+  getPendingUsersForAdmin,
+  updateProfile
 } from '../controller/authController.js';
 
 import { protect, authorizeRoles } from '../../../middlewares/authMiddleware.js';
@@ -103,9 +104,13 @@ router.patch(
 
 // --- [ Protected Routes ] ---
 
+import { upload } from '../../../utils/upload/multerConfig.js';
+
 router.get('/profile', protect, (req, res) => {
   res.status(200).json({ status: 'success', user: (req as any).user });
 });
+
+router.put('/profile', protect, upload.single('profileImage'), updateProfile);
 
 router.post('/admin/pending/:pendingUserId/approve', protect, authorizeRoles('ADMIN'), approvePendingUser);
 router.get('/admin/pending-users', protect, authorizeRoles('ADMIN'), getPendingUsersForAdmin);

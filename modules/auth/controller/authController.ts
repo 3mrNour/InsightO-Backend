@@ -57,7 +57,7 @@ export const register = async (req: Request, res: Response, next: NextFunction):
     await sendEmail({
       email,
       subject: 'Your activation code (insightO)',
-      message: `Welcome to insightO! Your activation code is: ${otp}`
+      message: otp
     });
 
     (req as Request & { otpEmail?: string }).otpEmail = email;
@@ -90,6 +90,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const user = await User.findOne({ email }).select('+password');
     if (!user) {
       res.status(401).json({ message: 'Invalid credentials' });
+      return;
+    }
+
+    if (!user.isActive) {
+      res.status(403).json({ message: 'Your account is pending admin approval' });
       return;
     }
 
@@ -204,22 +209,46 @@ export const verifyOTP = async (req: Request, res: Response) => {
       throw new AppError('Email and OTP are required', 400);
     }
     // Find pending user
-    const pendingUser = await PendingUser.findOne({ email });
+    const pendingUser = await PendingUser.findOne({ email }).select('+password');
     if (!pendingUser) {
       throw new AppError('No pending registration found for this email', 404);
     }
+    
+    // Check OTP
     if (pendingUser.otp !== otp || !pendingUser.otpExpires || Date.now() > pendingUser.otpExpires.getTime()) {
       throw new AppError('Invalid or expired OTP', 400);
     }
-    pendingUser.otp = '';
-    pendingUser.otpExpires = new Date(0);
-    pendingUser.otpVerified = true;
-    pendingUser.approvalStatus = 'PENDING_ADMIN_APPROVAL';
-    await pendingUser.save({ validateBeforeSave: false });
+
+    // OTP is valid! Now move to main User collection
+    // We set isActive: true but isVerified: true. 
+    // They might still need admin approval for roles, but at least they are "in the database"
+    const newUser = await User.create({
+      firstName: pendingUser.firstName,
+      lastName: pendingUser.lastName,
+      email: pendingUser.email,
+      password: pendingUser.password, // This was already hashed in register
+      nationalId: pendingUser.nationalId,
+      role: pendingUser.role,
+      isVerified: true,
+      isActive: false // Users stay inactive until Admin approves them
+    });
+
+    // Delete from pending
+    await PendingUser.deleteOne({ email });
+
+    const token = generateToken(newUser._id.toString(), newUser.role);
 
     return res.status(200).json({
       status: 'success',
-      message: 'OTP verified successfully. Your account is pending admin approval.'
+      message: 'OTP verified successfully. Your account is now in the system and pending admin approval.',
+      token,
+      user: {
+        id: newUser._id,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        email: newUser.email,
+        role: newUser.role
+      }
     });
   } catch (error: any) {
     if (error instanceof AppError) {
@@ -341,5 +370,48 @@ export const getPendingUsersForAdmin = async (_req: Request, res: Response, next
     });
   } catch (error) {
     next(error);
+  }
+};
+
+export const updateProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    const { email, password } = req.body;
+    let profileImage = req.body.profileImage;
+    
+    // If a file was uploaded, use its URL
+    if (req.file) {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      profileImage = `${baseUrl}/uploads/${req.file.filename}`;
+    }
+    
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+      return next(new AppError('User not found', 404));
+    }
+
+    if (email) user.email = email;
+    if (profileImage) user.profileImage = profileImage;
+    if (password) {
+      const salt = await bcryptjs.genSalt(10);
+      user.password = await bcryptjs.hash(password, salt);
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Profile updated successfully',
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        profileImage: user.profileImage,
+        role: user.role
+      }
+    });
+  } catch (error: any) {
+    next(new AppError(error.message || 'Error updating profile', 500));
   }
 };
