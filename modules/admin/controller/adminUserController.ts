@@ -45,7 +45,7 @@ interface UserListItem {
   profile: ProfileResponse | null;
 }
 
-interface UserDetailResponse extends UserListItem {}
+interface UserDetailResponse extends UserListItem { }
 
 const normalizeId = (id: Types.ObjectId | string): string => id.toString();
 
@@ -55,18 +55,44 @@ const getProfileByRole = async (
 ): Promise<ProfileDoc> => {
   if (role === UserSchema.STUDENT) {
     return StudentProfile.findOne({ userId })
+      .populate('userId', 'firstName lastName email role')
       .populate('departmentId')
       .populate('enrolledCourses')
-      .lean();
+      .lean()
+      .then((profile) => {
+        if (profile && (profile as any).userId) {
+          (profile as any).user = (profile as any).userId;
+          delete (profile as any).userId;
+        }
+        return profile as ProfileDoc;
+      });
   }
   if (role === UserSchema.INSTRUCTOR) {
     return InstructorProfile.findOne({ userId })
+      .populate('userId', 'firstName lastName email role')
       .populate('departmentId')
       .populate('teachingCourses')
-      .lean();
+      .lean()
+      .then((profile) => {
+        if (profile && (profile as any).userId) {
+          (profile as any).user = (profile as any).userId;
+          delete (profile as any).userId;
+        }
+        return profile as ProfileDoc;
+      });
   }
   if (role === UserSchema.HOD) {
-    return HODProfile.findOne({ userId }).populate('departmentId').lean();
+    return HODProfile.findOne({ userId })
+      .populate('userId', 'firstName lastName email role')
+      .populate('departmentId')
+      .lean()
+      .then((profile) => {
+        if (profile && (profile as any).userId) {
+          (profile as any).user = (profile as any).userId;
+          delete (profile as any).userId;
+        }
+        return profile as ProfileDoc;
+      });
   }
   return null;
 };
@@ -229,7 +255,7 @@ export const createAdminUser = asyncWrap(async (req: Request, res: Response, nex
     }
   } catch (profileErr) {
     // Rollback: remove the already-created user to keep data consistent
-    await User.deleteOne({ _id: createdUser._id }).catch(() => {});
+    await User.deleteOne({ _id: createdUser._id }).catch(() => { });
     return next(profileErr);
   }
 

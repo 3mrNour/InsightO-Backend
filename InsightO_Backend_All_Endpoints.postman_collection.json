@@ -15,6 +15,7 @@
     { "key": "registerOtp", "value": "000000" },
     { "key": "resetOtp", "value": "000000" },
     { "key": "newPassword", "value": "Student12345" },
+    { "key": "token", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ZWYxZjAwZWQzYWM1NjI3MTYzYjExMiIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc3ODU4NjEwMywiZXhwIjoxNzc5MTkwOTAzfQ.GdvydlElkzn_HEABW3uAai1AbjrpF6HW8i1VqragSso" },
     { "key": "adminToken", "value": "" },
     { "key": "studentToken", "value": "" },
     { "key": "token", "value": "" },
