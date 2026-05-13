@@ -1,11 +1,10 @@
 import type { NextFunction, Request, Response } from 'express';
-import mongoose, { type Types } from 'mongoose';
+import { type Types } from 'mongoose';
 import User from '../../auth/model/User_Schema.js';
 import StudentProfile, { type IStudentProfile } from '../../profile/model/StudentProfile.js';
 import InstructorProfile, { type IInstructorProfile } from '../../profile/model/InstructorProfile.js';
 import HODProfile, { type IHODProfile } from '../../profile/model/HODProfile.js';
 import Department from '../../department/model/Department.js';
-import Course from '../../course/course.model.js';
 import { AppError } from '../../../utils/AppError.js';
 import { UserSchema } from '../../../utils/User.js';
 import bcryptjs from 'bcryptjs';
@@ -46,7 +45,7 @@ interface UserListItem {
   profile: ProfileResponse | null;
 }
 
-interface UserDetailResponse extends UserListItem {}
+interface UserDetailResponse extends UserListItem { }
 
 const normalizeId = (id: Types.ObjectId | string): string => id.toString();
 
@@ -56,18 +55,44 @@ const getProfileByRole = async (
 ): Promise<ProfileDoc> => {
   if (role === UserSchema.STUDENT) {
     return StudentProfile.findOne({ userId })
+      .populate('userId', 'firstName lastName email role')
       .populate('departmentId')
       .populate('enrolledCourses')
-      .lean();
+      .lean()
+      .then((profile) => {
+        if (profile && (profile as any).userId) {
+          (profile as any).user = (profile as any).userId;
+          delete (profile as any).userId;
+        }
+        return profile as ProfileDoc;
+      });
   }
   if (role === UserSchema.INSTRUCTOR) {
     return InstructorProfile.findOne({ userId })
+      .populate('userId', 'firstName lastName email role')
       .populate('departmentId')
       .populate('teachingCourses')
-      .lean();
+      .lean()
+      .then((profile) => {
+        if (profile && (profile as any).userId) {
+          (profile as any).user = (profile as any).userId;
+          delete (profile as any).userId;
+        }
+        return profile as ProfileDoc;
+      });
   }
   if (role === UserSchema.HOD) {
-    return HODProfile.findOne({ userId }).populate('departmentId').lean();
+    return HODProfile.findOne({ userId })
+      .populate('userId', 'firstName lastName email role')
+      .populate('departmentId')
+      .lean()
+      .then((profile) => {
+        if (profile && (profile as any).userId) {
+          (profile as any).user = (profile as any).userId;
+          delete (profile as any).userId;
+        }
+        return profile as ProfileDoc;
+      });
   }
   return null;
 };
@@ -94,18 +119,17 @@ const mapUserWithProfile = async (user: IUserLean): Promise<UserListItem> => {
 const removeProfileByRole = async (
   role: string,
   userId: Types.ObjectId,
-  session?: mongoose.ClientSession,
 ) => {
   if (role === UserSchema.STUDENT) {
-    await StudentProfile.deleteOne({ userId }, session ? { session } : {});
+    await StudentProfile.deleteOne({ userId });
     return;
   }
   if (role === UserSchema.INSTRUCTOR) {
-    await InstructorProfile.deleteOne({ userId }, session ? { session } : {});
+    await InstructorProfile.deleteOne({ userId });
     return;
   }
   if (role === UserSchema.HOD) {
-    await HODProfile.deleteOne({ userId }, session ? { session } : {});
+    await HODProfile.deleteOne({ userId });
   }
 };
 
@@ -113,7 +137,6 @@ const createOrUpdateProfileByRole = async (
   role: string,
   userId: Types.ObjectId,
   data: { academicYear?: number; departmentId?: string | Types.ObjectId },
-  session: mongoose.ClientSession,
 ) => {
   if (role === UserSchema.STUDENT) {
     if (typeof data.academicYear !== 'number') {
@@ -122,14 +145,14 @@ const createOrUpdateProfileByRole = async (
     if (!data.departmentId) {
       throw new AppError('departmentId is required for STUDENT role', 400);
     }
-    const department = await Department.findById(data.departmentId).session(session);
+    const department = await Department.findById(data.departmentId);
     if (!department) {
       throw new AppError('departmentId is invalid or department does not exist', 400);
     }
     await StudentProfile.findOneAndUpdate(
       { userId },
       { $set: { academicYear: data.academicYear, departmentId: data.departmentId } },
-      { new: true, upsert: true, session, setDefaultsOnInsert: true },
+      { new: true, upsert: true, setDefaultsOnInsert: true },
     );
     return;
   }
@@ -138,14 +161,14 @@ const createOrUpdateProfileByRole = async (
     if (!data.departmentId) {
       throw new AppError('departmentId is required for INSTRUCTOR role', 400);
     }
-    const department = await Department.findById(data.departmentId).session(session);
+    const department = await Department.findById(data.departmentId);
     if (!department) {
       throw new AppError('departmentId is invalid or department does not exist', 400);
     }
     await InstructorProfile.findOneAndUpdate(
       { userId },
       { $set: { departmentId: data.departmentId } },
-      { new: true, upsert: true, session, setDefaultsOnInsert: true },
+      { new: true, upsert: true, setDefaultsOnInsert: true },
     );
     return;
   }
@@ -154,33 +177,48 @@ const createOrUpdateProfileByRole = async (
     if (!data.departmentId) {
       throw new AppError('departmentId is required for HOD role', 400);
     }
-    const department = await Department.findById(data.departmentId).session(session);
+    const department = await Department.findById(data.departmentId);
     if (!department) {
       throw new AppError('departmentId is invalid or department does not exist', 400);
     }
     await HODProfile.findOneAndUpdate(
       { userId },
       { $set: { departmentId: data.departmentId } },
-      { new: true, upsert: true, session, setDefaultsOnInsert: true },
+      { new: true, upsert: true, setDefaultsOnInsert: true },
     );
   }
 };
 
 export const createAdminUser = asyncWrap(async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
-    const { firstName, lastName, email, password, nationalId, role, departmentId, academicYear } = req.body;
+  const { firstName, lastName, email, password, nationalId, role, departmentId, academicYear } = req.body;
 
-    // Check for existing user
-    const existingUser = await User.findOne({ $or: [{ email }, { nationalId }] }).session(session);
-    if (existingUser) {
-      throw new AppError('Email or National ID is already registered', 409);
+  // Check for existing user
+  const existingUser = await User.findOne({ $or: [{ email }, { nationalId }] });
+  if (existingUser) {
+    return next(new AppError('Email or National ID is already registered', 409));
+  }
+
+  // Validate departmentId exists before creating anything
+  if ([UserSchema.STUDENT, UserSchema.INSTRUCTOR, UserSchema.HOD].includes(role as UserSchema)) {
+    if (!departmentId) {
+      return next(new AppError('departmentId is required for this role', 400));
     }
+    const departmentExists = await Department.findById(departmentId);
+    if (!departmentExists) {
+      return next(new AppError('departmentId is invalid or department does not exist', 400));
+    }
+  }
 
-    const hashedPassword = await bcryptjs.hash(password, 10);
+  if (role === UserSchema.STUDENT && typeof academicYear !== 'number') {
+    return next(new AppError('academicYear is required and must be a number for STUDENT role', 400));
+  }
 
-    const newUser = await User.create([{
+  const hashedPassword = await bcryptjs.hash(password, 10);
+
+  // Step 1: Create the User document
+  let createdUser: InstanceType<typeof User> | null = null;
+  try {
+    createdUser = await User.create({
       firstName,
       lastName,
       email,
@@ -189,44 +227,45 @@ export const createAdminUser = asyncWrap(async (req: Request, res: Response, nex
       role,
       isActive: true,
       isVerified: true,
-    }], { session });
+    });
+  } catch (userErr) {
+    return next(userErr);
+  }
 
-    // Create corresponding profile based on role
+  // Step 2: Create the role-specific profile (with manual rollback on failure)
+  try {
     if (role === UserSchema.STUDENT) {
-      await StudentProfile.create([{
-        userId: newUser[0]._id,
+      await StudentProfile.create({
+        userId: createdUser._id,
         departmentId,
         academicYear,
         enrolledCourses: [],
-      }], { session });
+      });
     } else if (role === UserSchema.INSTRUCTOR) {
-      await InstructorProfile.create([{
-        userId: newUser[0]._id,
+      await InstructorProfile.create({
+        userId: createdUser._id,
         departmentId,
         teachingCourses: [],
-      }], { session });
+      });
     } else if (role === UserSchema.HOD) {
-      await HODProfile.create([{
-        userId: newUser[0]._id,
+      await HODProfile.create({
+        userId: createdUser._id,
         departmentId,
-      }], { session });
+      });
     }
-
-    await session.commitTransaction();
-    session.endSession();
-
-    const userResponse = await mapUserWithProfile(newUser[0].toObject());
-
-    res.status(201).json({
-      status: 'success',
-      message: 'User created successfully',
-      data: userResponse
-    });
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    next(error);
+  } catch (profileErr) {
+    // Rollback: remove the already-created user to keep data consistent
+    await User.deleteOne({ _id: createdUser._id }).catch(() => { });
+    return next(profileErr);
   }
+
+  const userResponse = await mapUserWithProfile(createdUser.toObject());
+
+  res.status(201).json({
+    status: 'success',
+    message: 'User created successfully',
+    data: userResponse,
+  });
 });
 
 export const listAdminUsers = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -253,13 +292,11 @@ export const getAdminUserById = async (req: Request, res: Response, next: NextFu
 };
 
 export const updateAdminUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
   try {
     const { firstName, lastName, email, role, isActive, academicYear, departmentId } = req.body;
-    const user = await User.findById(req.params.id).session(session);
+    const user = await User.findById(req.params.id);
     if (!user) {
-      throw new AppError('User not found', 404);
+      return next(new AppError('User not found', 404));
     }
 
     const oldRole = user.role;
@@ -268,53 +305,43 @@ export const updateAdminUser = async (req: Request, res: Response, next: NextFun
     if (email !== undefined) user.email = email;
     if (isActive !== undefined) user.isActive = isActive;
     if (role !== undefined) user.role = role;
-    await user.save({ session });
+    await user.save();
 
+    // If role changed, remove the old profile
     if (oldRole !== user.role) {
-      await removeProfileByRole(oldRole, user._id, session);
+      await removeProfileByRole(oldRole, user._id);
     }
 
+    // Create or update profile for roles that have one
     if ([UserSchema.STUDENT, UserSchema.INSTRUCTOR, UserSchema.HOD].includes(user.role as UserSchema)) {
       await createOrUpdateProfileByRole(
         user.role,
         user._id,
         { academicYear, departmentId },
-        session,
       );
     }
-
-    await session.commitTransaction();
-    session.endSession();
 
     const updatedUser = (await User.findById(user._id).select('-password -otp -otpExpires').lean()) as IUserLean | null;
     const payload = updatedUser ? await mapUserWithProfile(updatedUser) : null;
     res.status(200).json({ status: 'success', data: payload });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
     next(error);
   }
 };
 
 export const deleteAdminUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
   try {
-    const user = await User.findById(req.params.id).session(session);
+    const user = await User.findById(req.params.id);
     if (!user) {
-      throw new AppError('User not found', 404);
+      return next(new AppError('User not found', 404));
     }
 
-    await removeProfileByRole(user.role, user._id, session);
-    await User.deleteOne({ _id: user._id }, { session });
-
-    await session.commitTransaction();
-    session.endSession();
+    // Remove role-specific profile first, then remove user
+    await removeProfileByRole(user.role, user._id);
+    await User.deleteOne({ _id: user._id });
 
     res.status(200).json({ status: 'success', message: 'User and related profile deleted successfully' });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
     next(error);
   }
 };
