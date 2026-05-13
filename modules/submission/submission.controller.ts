@@ -168,3 +168,28 @@ export const createSubmission = asyncWrap(async (req: Request, res: Response, ne
     next(error);
   }
 });
+
+/**
+ * getFormSubmissions
+ * Retrieves all responses for a specific form.
+ */
+export const getFormSubmissions = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
+  const { formId } = req.params;
+  
+  const submissions = await Submission.find({ form_id: formId })
+    .populate({
+      path: 'evaluator_id',
+      select: 'name firstName lastName email role'
+    })
+    .populate({
+      path: 'subject_id',
+      select: 'name firstName lastName email role'
+    })
+    .sort({ createdAt: -1 });
+
+  res.json({
+    status: "success",
+    count: submissions.length,
+    data: submissions
+  });
+});

@@ -73,10 +73,13 @@ export const getFormById = async (req: Request, res: Response, next: NextFunctio
     if (!form) {
       return next(new AppError("Form not found", 404));
     }
-    if (!form.is_active) {
+    const isCreator = form.creator_id.toString() === user._id.toString();
+    const isAdmin = ["ADMIN", "HOD"].includes(user.role);
+
+    if (!form.is_active && !isCreator && !isAdmin) {
       return next(new AppError("Form is not active", 403));
     }
-    if (form.creator_id.toString() !== user._id.toString()) {
+    if (!isCreator && !isAdmin) {
       return next(new AppError("You don't own this form", 403));
     }
     res.json({

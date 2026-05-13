@@ -1,7 +1,7 @@
 // src/modules/submission/submission.route.ts
 
 import { Router } from 'express';
-import { createSubmission } from './submission.controller.js';
+import { createSubmission, getFormSubmissions } from './submission.controller.js';
 import { protect, authorizeRoles } from '../../middlewares/authMiddleware.js';
 import { validate } from '../../middlewares/validateMiddleware.js';
 import { createSubmissionSchema } from './submission.validat.js';
@@ -23,6 +23,13 @@ router.post(
   authorizeRoles('STUDENT'),
   validate(createSubmissionSchema),
   createSubmission
+);
+
+router.get(
+  '/:formId/submissions',
+  protect,
+  authorizeRoles('ADMIN', 'HOD', 'INSTRUCTOR'),
+  getFormSubmissions
 );
 
 export default router;

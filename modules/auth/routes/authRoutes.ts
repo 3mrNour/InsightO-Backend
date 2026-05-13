@@ -59,7 +59,8 @@ import {
   verifyOTP, // الكنترولر المسؤول عن نقل البيانات من التيمب للأصلي
   approvePendingUser,
   getPendingUsersForAdmin,
-  updateProfile
+  updateProfile,
+  changePassword
 } from '../controller/authController.js';
 
 import { protect, authorizeRoles } from '../../../middlewares/authMiddleware.js';
@@ -111,6 +112,7 @@ router.get('/profile', protect, (req, res) => {
 });
 
 router.put('/profile', protect, upload.single('profileImage'), updateProfile);
+router.patch('/profile/password', protect, changePassword);
 
 router.post('/admin/pending/:pendingUserId/approve', protect, authorizeRoles('ADMIN'), approvePendingUser);
 router.get('/admin/pending-users', protect, authorizeRoles('ADMIN'), getPendingUsersForAdmin);

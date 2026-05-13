@@ -376,7 +376,7 @@ export const getPendingUsersForAdmin = async (_req: Request, res: Response, next
 export const updateProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const userId = (req as any).user.id;
-    const { email, password } = req.body;
+    const { firstName, lastName, email } = req.body;
     let profileImage = req.body.profileImage;
     
     // If a file was uploaded, use its URL
@@ -390,12 +390,10 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
       return next(new AppError('User not found', 404));
     }
 
+    if (firstName) user.firstName = firstName;
+    if (lastName) user.lastName = lastName;
     if (email) user.email = email;
     if (profileImage) user.profileImage = profileImage;
-    if (password) {
-      const salt = await bcryptjs.genSalt(10);
-      user.password = await bcryptjs.hash(password, salt);
-    }
 
     await user.save();
 
@@ -408,10 +406,53 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
         lastName: user.lastName,
         email: user.email,
         profileImage: user.profileImage,
-        role: user.role
+        role: user.role,
+        nationalId: user.nationalId,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
       }
     });
   } catch (error: any) {
     next(new AppError(error.message || 'Error updating profile', 500));
+  }
+};
+
+export const changePassword = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const userId = (req as any).user.id;
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return next(new AppError('Please provide currentPassword, newPassword and confirmPassword', 400));
+    }
+
+    if (newPassword !== confirmPassword) {
+      return next(new AppError('New password and confirm password do not match', 400));
+    }
+
+    if (newPassword.length < 8) {
+      return next(new AppError('New password must be at least 8 characters long', 400));
+    }
+
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+      return next(new AppError('User not found', 404));
+    }
+
+    const isMatch = await bcryptjs.compare(currentPassword, user.password as string);
+    if (!isMatch) {
+      return next(new AppError('Current password is incorrect', 401));
+    }
+
+    const salt = await bcryptjs.genSalt(10);
+    user.password = await bcryptjs.hash(newPassword, salt);
+    await user.save();
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Password changed successfully'
+    });
+  } catch (error: any) {
+    next(new AppError(error.message || 'Error changing password', 500));
   }
 };
