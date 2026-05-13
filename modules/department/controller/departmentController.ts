@@ -1,11 +1,21 @@
 import type { NextFunction, Request, Response } from 'express';
 import Department from '../model/Department.js';
+import HODProfile from '../../profile/model/HODProfile.js';
 import { AppError } from '../../../utils/AppError.js';
 
 export const createDepartment = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { name, code, description } = req.body;
+    const { name, code, description, hodId } = req.body;
     const department = await Department.create({ name, code, description });
+    
+    if (hodId) {
+      await HODProfile.findOneAndUpdate(
+        { userId: hodId },
+        { departmentId: department._id },
+        { upsert: true }
+      );
+    }
+
     res.status(201).json({ status: 'success', data: department });
   } catch (error: any) {
     if (error?.code === 11000) {
@@ -38,14 +48,24 @@ export const getDepartmentById = async (req: Request, res: Response, next: NextF
 
 export const updateDepartment = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    const { hodId, ...updateData } = req.body;
     const department = await Department.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updateData,
       { new: true, runValidators: true },
     );
     if (!department) {
       return next(new AppError('Department not found', 404));
     }
+
+    if (hodId) {
+      await HODProfile.findOneAndUpdate(
+        { userId: hodId },
+        { departmentId: department._id },
+        { upsert: true }
+      );
+    }
+
     res.status(200).json({ status: 'success', data: department });
   } catch (error: any) {
     if (error?.code === 11000) {

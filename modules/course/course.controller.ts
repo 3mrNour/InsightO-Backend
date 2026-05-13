@@ -36,6 +36,14 @@ export const createCourse = asyncWrap(async (
     isActive,
   });
 
+  // ✅ Auto-sync: Add course to instructor's teachingCourses
+  if (instructorId) {
+    await InstructorProfile.findOneAndUpdate(
+      { userId: instructorId },
+      { $addToSet: { teachingCourses: newCourse._id } }
+    );
+  }
+
   res.status(201).json({
     status: "success",
     data: { course: newCourse },
@@ -126,10 +134,29 @@ export const updateCourse = asyncWrap(async (
     }
   }
 
+  const oldInstructorId = course.instructorId?.toString();
+  const newInstructorId = req.body.instructorId;
+
   const updatedCourse = await Course.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,
   });
+
+  // ✅ Auto-sync: Handle instructor change
+  if (newInstructorId && newInstructorId !== oldInstructorId) {
+    // Remove from old instructor
+    if (oldInstructorId) {
+      await InstructorProfile.findOneAndUpdate(
+        { userId: oldInstructorId },
+        { $pull: { teachingCourses: course._id } }
+      );
+    }
+    // Add to new instructor
+    await InstructorProfile.findOneAndUpdate(
+      { userId: newInstructorId },
+      { $addToSet: { teachingCourses: course._id } }
+    );
+  }
 
   res.status(200).json({ status: "success", data: { course: updatedCourse } });
 });
@@ -154,6 +181,14 @@ export const deleteCourse = asyncWrap(async (
     if (hodProfile?.departmentId.toString() !== course.departmentId.toString()) {
       return next(new AppError("Not authorized to delete courses outside your department", 403));
     }
+  }
+
+  // ✅ Auto-sync: Remove course from instructor's teachingCourses before deletion
+  if (course.instructorId) {
+    await InstructorProfile.findOneAndUpdate(
+      { userId: course.instructorId },
+      { $pull: { teachingCourses: course._id } }
+    );
   }
 
   await course.deleteOne();
