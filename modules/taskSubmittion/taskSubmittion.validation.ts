@@ -3,7 +3,7 @@ import { z } from 'zod';
 const objectId = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId");
 
 const attachmentSchema = z.object({
-  url: z.string().url("Invalid file URL"),
+  url: z.string().min(1, "Invalid file URL"),
   fileName: z.string().optional(),
   size: z.number().positive("File size must be positive").optional(),
 });
