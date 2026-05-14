@@ -95,3 +95,19 @@ export const finalizeGrade = asyncWrap(async (req: Request, res: Response, next:
     data: { submission }
   });
 });
+
+// 4. جلب تسليمات المستخدم الحالي (لصفحة التقييمات)
+export const getMySubmissions = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
+  const user = (req as any).user;
+  const userId = user.id || user._id;
+
+  const submissions = await TaskSubmission.find({ submitter_id: userId })
+    .populate('task_id', 'title description deadline ai_grading_rubric status')
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    status: "success",
+    count: submissions.length,
+    data: { submissions }
+  });
+});
