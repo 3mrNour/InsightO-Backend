@@ -99,7 +99,10 @@ export const deleteForm = async (req: Request, res: Response, next: NextFunction
     if (!form) {
       return next(new AppError("Form not found", 404));
     }
-    if (form.creator_id.toString() !== user._id.toString()) {
+    const isCreator = form.creator_id.toString() === user._id.toString();
+    const isAdmin = ["ADMIN", "HOD"].includes(user.role);
+
+    if (!isCreator && !isAdmin) {
       return next(new AppError("Unauthorized", 403));
     }
     await Question.deleteMany({ form_id: id });
@@ -118,6 +121,14 @@ export const updateFormSettings = async (req: Request, res: Response, next: Next
     const form = await Form.findById(req.params.id);
     if (!form) {
       return next(new AppError("Form not found", 404));
+    }
+
+    const user = (req as any).user;
+    const isCreator = form.creator_id.toString() === user._id.toString();
+    const isAdmin = ["ADMIN", "HOD"].includes(user.role);
+
+    if (!isCreator && !isAdmin) {
+      return next(new AppError("Not allowed", 403));
     }
     const updates: any = {};
     ["title", "description", "is_active", "is_anonymous"].forEach(field => {
