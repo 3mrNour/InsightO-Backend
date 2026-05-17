@@ -3,6 +3,7 @@ import {
   submitTask,
   getTaskSubmissions,
   finalizeGrade,
+  getMySubmissions,
 } from "./taskSubmittion.controller.js";
 import { protect, authorizeRoles } from "../../middlewares/authMiddleware.js";
 import { validate } from "../../middlewares/validateMiddleware.js";
@@ -20,29 +21,32 @@ router.use(protect);
 /**
  * المسارات الخاصة بالتاسك نفسه (تسليم واسترجاع التسليمات)
  */
-router.route("/task/:taskId")
+router
+  .route("/task/:taskId")
   // 1. الطالب بيسلم التاسك
-  .post(
-    authorizeRoles("STUDENT"),
-    validate(submitTaskSchema),
-    submitTask
-  )
+  .post(authorizeRoles("STUDENT"), validate(submitTaskSchema), submitTask)
   // 2. جلب تسليمات تاسك معين (للدكتور/رئيس القسم/الأدمن)
   .get(
     authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"),
     validate(getTaskSubmissionsSchema),
-    getTaskSubmissions
+    getTaskSubmissions,
   );
-
+router
+  .route("/my-submissions")
+  .get(
+    authorizeRoles("STUDENT", "INSTRUCTOR", "HOD", "ADMIN"),
+    getMySubmissions,
+  );
 /**
  * المسارات الخاصة بالتسليم نفسه (التقييم البشري)
  */
-router.route("/:submissionId/grade")
+router
+  .route("/:submissionId/grade")
   // 3. التقييم البشري النهائي
   .patch(
     authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"),
     validate(finalizeGradeSchema),
-    finalizeGrade
+    finalizeGrade,
   );
 
 export default router;

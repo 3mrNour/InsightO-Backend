@@ -11,7 +11,10 @@ export const createQuestion = async (req: Request, res: Response, next: NextFunc
     if (!form) {
       return next(new AppError("Form not found", 404));
     }
-    if (form.creator_id.toString() !== user._id.toString()) {
+    const isCreator = form.creator_id.toString() === user._id.toString();
+    const isAdmin = ["ADMIN", "HOD"].includes(user.role);
+
+    if (!isCreator && !isAdmin) {
       return next(new AppError("Not allowed", 403));
     }
     const question = await Question.create({
@@ -42,6 +45,20 @@ export const getQuestions = async (req: Request, res: Response, next: NextFuncti
 
 export const updateQuestion = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const user = (req as any).user;
+    const existingQuestion = await Question.findById(req.params.id);
+    if (!existingQuestion) {
+      return next(new AppError("Question not found", 404));
+    }
+
+    const form = await Form.findById(existingQuestion.form_id);
+    const isCreator = form?.creator_id.toString() === user._id.toString();
+    const isAdmin = ["ADMIN", "HOD"].includes(user.role);
+
+    if (!isCreator && !isAdmin) {
+      return next(new AppError("Not allowed", 403));
+    }
+
     const question = await Question.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -58,9 +75,18 @@ export const updateQuestion = async (req: Request, res: Response, next: NextFunc
 
 export const deleteQuestion = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const user = (req as any).user;
     const question = await Question.findById(req.params.id);
     if (!question) {
       return next(new AppError("Question not found", 404));
+    }
+
+    const form = await Form.findById(question.form_id);
+    const isCreator = form?.creator_id.toString() === user._id.toString();
+    const isAdmin = ["ADMIN", "HOD"].includes(user.role);
+
+    if (!isCreator && !isAdmin) {
+      return next(new AppError("Not allowed", 403));
     }
     await Question.deleteOne({ _id: question._id });
     await Form.findByIdAndUpdate(question.form_id, {

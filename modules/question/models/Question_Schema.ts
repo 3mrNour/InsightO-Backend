@@ -18,6 +18,11 @@ export interface IFileConfig {
   max_size: number;
 }
 
+export interface IScale {
+  min: number;
+  max: number;
+}
+
 // ─── Question Interface ───────────────────────────────────────────────────────
 
 export interface IQuestion extends Document {
@@ -29,6 +34,7 @@ export interface IQuestion extends Document {
   options?: string[];
   order: number;
   file_config?: IFileConfig;
+  scale?: IScale;
 }
 
 // ─── Sub-Schema for File Config ───────────────────────────────────────────────
@@ -43,6 +49,14 @@ const fileConfigSchema = new Schema<IFileConfig>(
       type: Number,
       default: 5 * 1024 * 1024, // 5 MB
     },
+  },
+  { _id: false }
+);
+
+const scaleSchema = new Schema<IScale>(
+  {
+    min: { type: Number, default: 1 },
+    max: { type: Number, default: 5 },
   },
   { _id: false }
 );
@@ -90,6 +104,10 @@ const questionSchema = new Schema<IQuestion>(
 
     file_config: {
       type: fileConfigSchema,
+      required: false,
+    },
+    scale: {
+      type: scaleSchema,
       required: false,
     },
   },

@@ -778,6 +778,63 @@
           }
         }
       ]
+    },
+    {
+      "name": "AI Module",
+      "item": [
+        {
+          "name": "Ingest Rubric (PDF)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": "{{baseUrl}}/api/ai/ingest-rubric"
+          }
+        },
+        {
+          "name": "Ingest Rubric (Text)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Your raw rubric text goes here...\"\n}"
+            },
+            "url": "{{baseUrl}}/api/ai/ingest-rubric"
+          }
+        },
+        {
+          "name": "Grade Submission",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"submission\": \"The student submission text to be graded...\"\n}"
+            },
+            "url": "{{baseUrl}}/api/ai/grade-submission"
+          }
+        }
+      ]
     }
   ]
 }

@@ -10,7 +10,12 @@ import type { Request } from "express";
 const UPLOAD_DIR = "uploads";
 
 /** Allowed MIME types for uploaded files */
-const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "application/pdf"];
+const ALLOWED_MIME_TYPES = [
+  "image/png",
+  "image/jpeg",
+  "application/pdf",
+  "text/plain",
+];
 
 /** Maximum allowed file size in bytes (5 MB) */
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -29,10 +34,18 @@ if (!fs.existsSync(UPLOAD_DIR)) {
  * - filename: unique timestamp-based name
  */
 const storage = multer.diskStorage({
-  destination: (_req: Request, _file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
+  destination: (
+    _req: Request,
+    _file: Express.Multer.File,
+    cb: (error: Error | null, destination: string) => void,
+  ) => {
     cb(null, UPLOAD_DIR);
   },
-  filename: (_req: Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
+  filename: (
+    _req: Request,
+    file: Express.Multer.File,
+    cb: (error: Error | null, filename: string) => void,
+  ) => {
     const ext = path.extname(file.originalname).toLowerCase();
     const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
     cb(null, uniqueName);
@@ -47,12 +60,39 @@ const storage = multer.diskStorage({
 const fileFilter = (
   _req: Request,
   file: Express.Multer.File,
-  cb: FileFilterCallback
+  cb: FileFilterCallback,
 ) => {
-  if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+  // الامتدادات المسموحة (صور، ملفات نصية، وملفات أكواد شائعة)
+  const allowedExtensions = [
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".pdf",
+    ".txt",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".py",
+    ".cpp",
+    ".c",
+    ".java",
+    ".cs",
+    ".html",
+    ".css",
+    ".json",
+  ];
+
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  if (allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error(`File type "${file.mimetype}" is not supported. Use PNG, JPEG, or PDF.`));
+    cb(
+      new Error(
+        `File extension "${ext}" is not supported. Please upload valid documents or code files.`,
+      ),
+    );
   }
 };
 

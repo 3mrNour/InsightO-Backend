@@ -44,6 +44,22 @@ export const createCourse = asyncWrap(async (
     );
   }
 
+  // ✅ Auto-sync: Enroll students
+  if (Array.isArray(req.body.studentIds)) {
+    const validStudents = await User.find({
+      _id: { $in: req.body.studentIds },
+      role: UserSchema ? UserSchema.STUDENT : 'STUDENT',
+    });
+    const validStudentObjectIds = validStudents.map(s => s._id);
+
+    if (validStudentObjectIds.length > 0) {
+      await StudentProfile.updateMany(
+        { userId: { $in: validStudentObjectIds } },
+        { $addToSet: { enrolledCourses: newCourse._id } }
+      );
+    }
+  }
+
   res.status(201).json({
     status: "success",
     data: { course: newCourse },
@@ -143,19 +159,50 @@ export const updateCourse = asyncWrap(async (
   });
 
   // ✅ Auto-sync: Handle instructor change
-  if (newInstructorId && newInstructorId !== oldInstructorId) {
-    // Remove from old instructor
-    if (oldInstructorId) {
-      await InstructorProfile.findOneAndUpdate(
-        { userId: oldInstructorId },
-        { $pull: { teachingCourses: course._id } }
+  if (req.body.instructorId !== undefined) {
+    const newInstructorIdStr = newInstructorId ? newInstructorId.toString() : null;
+    if (newInstructorIdStr !== oldInstructorId) {
+      // Remove from old instructor
+      if (oldInstructorId) {
+        await InstructorProfile.findOneAndUpdate(
+          { userId: oldInstructorId },
+          { $pull: { teachingCourses: course._id } }
+        );
+      }
+      // Add to new instructor
+      if (newInstructorIdStr) {
+        await InstructorProfile.findOneAndUpdate(
+          { userId: newInstructorIdStr },
+          { $addToSet: { teachingCourses: course._id } }
+        );
+      }
+    }
+  }
+
+  // ✅ Auto-sync: Enroll students
+  if (Array.isArray(req.body.studentIds)) {
+    const validStudents = await User.find({
+      _id: { $in: req.body.studentIds },
+      role: UserSchema ? UserSchema.STUDENT : 'STUDENT',
+    });
+    const validStudentObjectIds = validStudents.map(s => s._id);
+
+    // Remove course from students not in the list
+    await StudentProfile.updateMany(
+      { 
+        enrolledCourses: course._id, 
+        userId: { $nin: validStudentObjectIds } 
+      },
+      { $pull: { enrolledCourses: course._id } }
+    );
+
+    // Add course to students in the list
+    if (validStudentObjectIds.length > 0) {
+      await StudentProfile.updateMany(
+        { userId: { $in: validStudentObjectIds } },
+        { $addToSet: { enrolledCourses: course._id } }
       );
     }
-    // Add to new instructor
-    await InstructorProfile.findOneAndUpdate(
-      { userId: newInstructorId },
-      { $addToSet: { teachingCourses: course._id } }
-    );
   }
 
   res.status(200).json({ status: "success", data: { course: updatedCourse } });
@@ -194,55 +241,4 @@ export const deleteCourse = asyncWrap(async (
   await course.deleteOne();
 
   res.status(200).json({ status: "success", message: "Course deleted successfully" });
-});
-
-export const enrollStudents = asyncWrap(async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  const { studentIds } = req.body;
-  const courseId = req.params.id;
-  const user = (req as any).user;
-  const userId = user?.id || user?._id;
-
-  const course = await Course.findById(courseId);
-  if (!course) {
-    return next(new AppError("Course not found", 404));
-  }
-
-  // HOD must only enroll students in courses within their department
-  if (user.role === "HOD") {
-    const hodProfile = await HODProfile.findOne({ userId });
-    if (hodProfile?.departmentId.toString() !== course.departmentId.toString()) {
-      return next(new AppError("Not authorized to enroll students in courses outside your department", 403));
-    }
-  }
-
-  // Find all provided user IDs that are actually STUDENTS
-  const validStudents = await User.find({
-    _id: { $in: studentIds },
-    role: UserSchema ? UserSchema.STUDENT : 'STUDENT',
-  });
-
-  if (validStudents.length === 0) {
-    return next(new AppError("No valid students found with the provided IDs", 400));
-  }
-
-  const validStudentIds = validStudents.map(student => student._id);
-
-  // Update their StudentProfile to include this courseId (no duplicates)
-  await StudentProfile.updateMany(
-    { userId: { $in: validStudentIds } },
-    { $addToSet: { enrolledCourses: courseId } }
-  );
-
-  res.status(200).json({
-    status: "success",
-    message: `Successfully enrolled ${validStudentIds.length} students in the course.`,
-    data: {
-      enrolledCount: validStudentIds.length,
-      validStudentIds,
-    }
-  });
-});
+});

@@ -13,6 +13,8 @@ import taskRoutes from "./modules/task/task.route.js";
 import taskSubmittionRoutes from "./modules/taskSubmittion/taskSubmittion.route.js";
 import courseRoutes from "./modules/course/course.route.js";
 import cycleRoutes from "./modules/cycle/cycle.route.js";
+import ingestionroute from "./modules/AI/ingestion.route.js";
+import gradingRoute from "./modules/AI/grading.route.js";
 
 export function createApp() {
   const app = express();
@@ -60,6 +62,10 @@ export function createApp() {
 
   // Evaluation Cycle routes
   app.use("/api/cycles", cycleRoutes);
+
+  // AI routes
+  app.use("/api/ai", ingestionroute);
+  app.use("/api/ai", gradingRoute);
 
   // ─── Error Handling ─────────────────────────────────────────────────────────
   app.use(errorHandler);

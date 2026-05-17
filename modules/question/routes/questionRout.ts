@@ -40,7 +40,7 @@ router.get(
 
 
 router.patch(
-  "/questions/:id",
+  "/:id",
   protect,
   authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"),
   validate(questionIdParamSchema),
@@ -50,7 +50,7 @@ router.patch(
 
 
 router.delete(
-  "/questions/:id",
+  "/:id",
   protect,
   authorizeRoles("ADMIN", "HOD"),
   validate(questionIdParamSchema),

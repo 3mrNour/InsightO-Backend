@@ -7,11 +7,10 @@ import {
   getCourseById,
   updateCourse,
   deleteCourse,
-  enrollStudents,
 } from "./course.controller.js";
 import { protect, authorizeRoles } from "../../middlewares/authMiddleware.js";
 import { validate } from '../../middlewares/validateMiddleware.js';
-import { createCourseSchema, updateCourseSchema, enrollStudentsSchema } from './course.validation.js';
+import { createCourseSchema, updateCourseSchema } from './course.validation.js';
 
 const router = Router();
 
@@ -59,16 +58,5 @@ router
    * الوصول: ADMIN و HOD فقط
    */
   .delete(authorizeRoles("ADMIN", "HOD"), deleteCourse);
-
-/**
- * POST /api/courses/:id/enroll
- * الوصول: ADMIN و HOD فقط
- */
-router.post(
-  "/:id/enroll",
-  authorizeRoles("ADMIN", "HOD"),
-  validate(enrollStudentsSchema),
-  enrollStudents
-);
 
 export default router;
