@@ -6,6 +6,7 @@ import Task from "../task/task.model.js";
 import { AppError } from "../../utils/AppError.js";
 import { asyncWrap } from "../../middlewares/asyncWrap.js";
 import { gradeSubmission } from "../AI/aiGrader.service.js";
+import { Chunk } from "../AI/chunk.model.js";
 
 // 1. الطالب بيسلم التاسك
 export const submitTask = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
@@ -42,7 +43,47 @@ export const submitTask = asyncWrap(async (req: Request, res: Response, next: Ne
     attachments,
   });
 
+  // ─── AI Grading Hook (non-blocking) ────────────────────────────────────────
+  // Runs AFTER the response is sent. Any failure is caught silently so it
+  // never impacts the student's submission experience.
+  setImmediate(async () => {
+    try {
+      // Only grade if the submission has content
+      if (!content) return;
 
+      let rubricToUse = task.ai_grading_rubric || "";
+
+      // Try fetching chunks from MongoDB if rubric file was ingested
+      const chunks = await Chunk.find({ "metadata.taskId": taskId.toString() });
+      if (chunks && chunks.length > 0) {
+        const chunkText = chunks.map(c => c.text).join("\n\n");
+        rubricToUse = rubricToUse ? `${rubricToUse}\n\n${chunkText}` : chunkText;
+      }
+
+      // Ensure we have a rubric to evaluate against
+      if (!rubricToUse) return;
+
+      const result = await gradeSubmission({
+        content,
+        rubric: rubricToUse,
+      });
+
+      await TaskSubmission.findByIdAndUpdate(submission._id, {
+        ai_evaluation: {
+          suggested_grade:  result.proposed_grade,
+          feedback:         result.ai_feedback,
+          confidence_score: result.confidence,
+        },
+        status: "AI_GRADED",
+      });
+
+      console.log(`[aiGrader] Graded submission ${submission._id} — grade: ${result.proposed_grade}`);
+    } catch (err: any) {
+      // Silent failure: AI errors must never surface to the student
+      console.error(`[aiGrader] Failed to grade submission ${submission._id}:`, err?.message ?? err);
+    }
+  });
+  // ───────────────────────────────────────────────────────────────────────────
 
   res.status(201).json({
     status: "success",

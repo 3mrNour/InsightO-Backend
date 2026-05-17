@@ -11,6 +11,7 @@ import {
 import { protect, authorizeRoles } from '../../middlewares/authMiddleware.js';
 // import { validate } from '../../middlewares/validateMiddleware.js';
 // import { createTaskSchema, updateTaskSchema } from './task.validat.js'; 
+import { upload } from '../../utils/upload/multerConfig.js';
 
 const router = Router();
 
@@ -36,6 +37,7 @@ router.route('/')
  */
   .post(
     authorizeRoles('ADMIN', 'HOD', 'INSTRUCTOR'),
+    upload.single('file'),
     // validate(createTaskSchema), 
     createTask
   );

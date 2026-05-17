@@ -6,6 +6,7 @@ import HODProfile from "../profile/model/HODProfile.js";
 import { AppError } from "../../utils/AppError.js";
 import { asyncWrap } from "../../middlewares/asyncWrap.js";
 import { broadcastTaskToStudents } from "../../utils/taskNotifier.js";
+import { IngestionService } from "../AI/ingestion.service.js";
 export const createTask = asyncWrap(async (
   req: Request,
   res: Response,
@@ -42,6 +43,18 @@ if (courseId) {
   broadcastTaskToStudents(courseId.toString(), title, description, deadline)
     .catch(err => console.error("Email Broadcast Error:", err));
 }
+
+  // 🧠 Ingest Rubric File into Chunks for AI Grading
+  if (req.file) {
+    try {
+      await IngestionService.processAndStore(req.file, undefined, newTask._id.toString());
+      console.log(`Task ${newTask._id}: Rubric file ingested into chunks successfully.`);
+    } catch (err) {
+      console.error("Error ingesting rubric file:", err);
+      // We don't block task creation if AI ingestion fails
+    }
+  }
+
   res.status(201).json({
     status: "success",
     data: { task: newTask },

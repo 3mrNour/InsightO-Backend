@@ -11,9 +11,10 @@ export class IngestionService {
    * Processes a PDF file or raw text, splits it into chunks, and stores embeddings in MongoDB.
    * @param file Express.Multer.File (optional)
    * @param text string (optional)
+   * @param taskId string (optional)
    * @returns The number of chunks processed and stored.
    */
-  public static async processAndStore(file?: Express.Multer.File, text?: string): Promise<number> {
+  public static async processAndStore(file?: Express.Multer.File, text?: string, taskId?: string): Promise<number> {
     let docs: Document[] = [];
 
     if (!process.env.OPENAI_API_KEY) {
@@ -39,6 +40,12 @@ export class IngestionService {
       chunkOverlap: 50,
     });
     const splitDocs = await textSplitter.splitDocuments(docs);
+
+    if (taskId) {
+      for (const doc of splitDocs) {
+        doc.metadata = { ...doc.metadata, taskId };
+      }
+    }
 
     // 4 & 5. Generate embeddings and store in MongoDB
     // and naturally maps to the 'chunks' collection.
