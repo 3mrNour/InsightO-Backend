@@ -751,6 +751,16 @@
             },
             "url": "{{baseUrl}}/api/task-submissions/{{submissionId}}/grade"
           }
+        },
+        {
+          "name": "Get My Submissions (Check AI Grade)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{studentToken}}" }
+            ],
+            "url": "{{baseUrl}}/api/task-submissions/my-submissions"
+          }
         }
       ]
     },

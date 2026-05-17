@@ -1,10 +1,11 @@
-// src/modules/submission/submission.controller.ts
+// src/modules/taskSubmittion/taskSubmittion.controller.ts
 
 import type { Request, Response, NextFunction } from "express";
 import TaskSubmission from "./taskSubmittion.model.js";
 import Task from "../task/task.model.js";
 import { AppError } from "../../utils/AppError.js";
 import { asyncWrap } from "../../middlewares/asyncWrap.js";
+import { gradeSubmission } from "../AI/aiGrader.service.js";
 
 // 1. الطالب بيسلم التاسك
 export const submitTask = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
@@ -40,6 +41,8 @@ export const submitTask = asyncWrap(async (req: Request, res: Response, next: Ne
     content,
     attachments,
   });
+
+
 
   res.status(201).json({
     status: "success",
@@ -78,7 +81,7 @@ export const finalizeGrade = asyncWrap(async (req: Request, res: Response, next:
 
   const task = submission.task_id as any;
 
-  // التأكد إن اللي بيقيم هو صاحب التاسك أو أدمن
+ // التأكد إن اللي بيقيم هو صاحب التاسك أو أدمن
   if (task.creator_id.toString() !== userId.toString() && user.role !== "ADMIN") {
     return next(new AppError("Not authorized to grade this submission", 403));
   }

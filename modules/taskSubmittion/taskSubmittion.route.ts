@@ -24,7 +24,7 @@ router.use(protect);
 router
   .route("/task/:taskId")
   // 1. الطالب بيسلم التاسك
-  .post(authorizeRoles("STUDENT"), validate(submitTaskSchema), submitTask)
+  .post( validate(submitTaskSchema), submitTask)
   // 2. جلب تسليمات تاسك معين (للدكتور/رئيس القسم/الأدمن)
   .get(
     authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"),
