@@ -2,9 +2,10 @@ import nodemailer from "nodemailer";
 import { google } from "googleapis";
 
 interface EmailOptions {
-  email: string;
+  email: string | string[];
   subject: string;
-  message: string;
+message?: string; // 👈 تعديل: خليناه اختياري
+  html?: string;    // 👈 تعديل: حقل جديد لضخ قوالب HTML مختلفة
 }
 
 const sendEmail = async (options: EmailOptions) => {
@@ -40,11 +41,8 @@ const sendEmail = async (options: EmailOptions) => {
     },
   });
 
-  const mailOptions = {
-    from: `insightO Team <${emailUser}>`,
-    to: options.email,
-    subject: options.subject,
-    html: `<!DOCTYPE html>
+ // 👇 السحر هنا: لو المبرمج باعت قالب HTML جاهز هيستخدمه، لو مش باعت هيستخدم قالب الـ OTP بتاعك
+  const defaultOtpHtml = `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
@@ -57,7 +55,6 @@ const sendEmail = async (options: EmailOptions) => {
         <tr>
             <td align="center">
                 <table width="100%" style="max-width: 500px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border: 1px solid #e1e8f0;">
-                    
                     <tr>
                         <td align="center" style="padding: 32px 0 20px;">
                             <div style="font-size: 24px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px;">
@@ -65,26 +62,22 @@ const sendEmail = async (options: EmailOptions) => {
                             </div>
                         </td>
                     </tr>
-
                     <tr>
                         <td style="padding: 0 40px;">
                             <h2 style="font-size: 20px; font-weight: 700; color: #1e293b; text-align: center; margin-bottom: 8px;">Verify your identity</h2>
                             <p style="font-size: 15px; color: #64748b; text-align: center; line-height: 1.5; margin-bottom: 32px;">
                                 Use the code below to complete your sign-in. This code is valid for exactly <b>1 minute</b>.
                             </p>
-                            
                             <div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 24px; text-align: center; margin-bottom: 32px;">
                                 <span style="font-size: 36px; font-weight: 900; color: #4f46e5; letter-spacing: 8px;">
                                     <b>${options.message}</b>
                                 </span>
                             </div>
-
                             <p style="font-size: 13px; color: #94a3b8; text-align: center; margin-bottom: 32px;">
                                 If you didn't request this code, you can safely ignore this email.
                             </p>
                         </td>
                     </tr>
-
                     <tr>
                         <td align="center" style="background-color: #0f172a; padding: 24px;">
                             <p style="margin: 0; font-size: 12px; color: #94a3b8;">
@@ -97,7 +90,17 @@ const sendEmail = async (options: EmailOptions) => {
         </tr>
     </table>
 </body>
-</html>`,
+</html>`;
+
+  // 👈 لو الإيميل مصفوفة، هنحطه في الـ bcc عشان الطلبة ميشوفوش إيميلات بعض
+  const isArray = Array.isArray(options.email);
+  
+  const mailOptions = {
+    from: `insightO Team <${emailUser}>`,
+    to: isArray ? [] : options.email,
+    bcc: isArray ? options.email : [],
+    subject: options.subject,
+    html: options.html || defaultOtpHtml, // لو باعتين HTML خاص هيترندر، غير كده الـ OTP
   };
 
   await transporter.sendMail(mailOptions);

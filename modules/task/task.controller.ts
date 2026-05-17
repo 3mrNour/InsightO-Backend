@@ -5,7 +5,7 @@ import InstructorProfile from "../profile/model/InstructorProfile.js";
 import HODProfile from "../profile/model/HODProfile.js";
 import { AppError } from "../../utils/AppError.js";
 import { asyncWrap } from "../../middlewares/asyncWrap.js";
-
+import { broadcastTaskToStudents } from "../../utils/taskNotifier.js";
 export const createTask = asyncWrap(async (
   req: Request,
   res: Response,
@@ -37,7 +37,11 @@ export const createTask = asyncWrap(async (
     ai_grading_rubric,
     deadline,
   });
-
+  const courseId = newTask.target?.course_id;
+if (courseId) {
+  broadcastTaskToStudents(courseId.toString(), title, description, deadline)
+    .catch(err => console.error("Email Broadcast Error:", err));
+}
   res.status(201).json({
     status: "success",
     data: { task: newTask },
