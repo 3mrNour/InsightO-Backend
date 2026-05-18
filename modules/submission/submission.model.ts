@@ -10,6 +10,7 @@ export interface ISubmission extends Document {
   form_id: Types.ObjectId;
   evaluator_id: Types.ObjectId; // The student submitting the form
   subject_id: Types.ObjectId;   // The instructor/subject being evaluated
+  task_id?: Types.ObjectId;
   answers: {
     question_id: Types.ObjectId;
     value: any; // Dynamic value based on question type
@@ -24,6 +25,11 @@ const submissionSchema = new Schema<ISubmission>(
       type: Schema.Types.ObjectId,
       ref: 'Form',
       required: true,
+    },
+
+    task_id: {
+      type: Schema.Types.ObjectId,
+      ref: 'Task',
     },
 
     evaluator_id: {

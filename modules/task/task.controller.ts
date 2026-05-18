@@ -18,6 +18,7 @@ export const createTask = asyncWrap(async (
     target,
     attachments,
     ai_grading_rubric,
+    form_id,
     deadline,
   } = req.body;
   const user = (req as any).user;
@@ -36,6 +37,7 @@ export const createTask = asyncWrap(async (
     target,
     attachments,
     ai_grading_rubric,
+    form_id,
     deadline,
   });
   const courseId = newTask.target?.course_id;

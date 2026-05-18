@@ -71,7 +71,7 @@ export const createSubmission = asyncWrap(async (req: Request, res: Response, ne
 
   const formId = req.params.formId as string;
   const evaluator_id = (req as any).user?._id;
-  const { subject_id, answers } = req.body;
+  const { subject_id, answers, task_id } = req.body;
 
   if (!evaluator_id) {
     return next(new AppError("User context missing", 401));
@@ -140,6 +140,7 @@ export const createSubmission = asyncWrap(async (req: Request, res: Response, ne
       form_id: formId,
       evaluator_id,
       subject_id,
+      task_id,
       answers: sanitizedAnswers,
     });
 

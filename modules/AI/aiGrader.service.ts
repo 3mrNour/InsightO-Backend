@@ -60,7 +60,7 @@ function getLLM(): ChatOpenAI {
       throw new Error("OPENAI_API_KEY is not set in environment variables.");
     }
     _llm = new ChatOpenAI({
-      modelName: "gpt-4o",
+      modelName: "gpt-4o-mini",
       temperature: 0,            // deterministic grading
       openAIApiKey: apiKey,
       maxTokens: 512,            // result is short JSON

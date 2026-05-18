@@ -18,6 +18,7 @@ export interface ITask extends Document {
     size?: number;
   }[];
   ai_grading_rubric?: string;
+  form_id?: Types.ObjectId;
   deadline: Date;
   status: "ACTIVE" | "CLOSED";
   createdAt: Date;
@@ -54,6 +55,8 @@ const taskSchema = new Schema<ITask>(
 
     // ده الحقل السحري للـ AI (الـ Rubric) اللي الذكاء الاصطناعي هيقيم بناءً عليه
     ai_grading_rubric: { type: String },
+
+    form_id: { type: Schema.Types.ObjectId, ref: "Form" },
 
     deadline: { type: Date, required: true },
     status: { type: String, enum: ["ACTIVE", "CLOSED"], default: "ACTIVE" },

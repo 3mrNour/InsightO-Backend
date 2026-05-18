@@ -33,6 +33,7 @@ const answerSchema = z.object({
 
 const submissionBodySchema = z.object({
   subject_id: objectId,
+  task_id: objectId.optional(),
   answers: z
     .array(answerSchema)
     .min(1, "At least one answer is required")

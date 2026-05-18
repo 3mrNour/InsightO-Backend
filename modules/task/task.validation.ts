@@ -29,6 +29,7 @@ const createTaskBodySchema = z.object({
   target: targetSchema,
   attachments: z.array(attachmentSchema).optional(),
   ai_grading_rubric: z.string().optional(),
+  form_id: objectId.optional(),
   deadline: z.string().datetime("Invalid ISO date string").or(z.date()),
   status: z.enum(["ACTIVE", "CLOSED"]).optional().default("ACTIVE"),
 });
