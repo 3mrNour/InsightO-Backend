@@ -9,7 +9,7 @@ const objectId = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId");
 // ─── Answer Value Schema ──────────────────────────────────────────────────────
 
 const answerValueSchema = z.union([
-  z.string().min(1, "Text answer cannot be empty"),
+  z.string(),
   z.number(),
   z.array(z.string()).min(1, "At least one option must be selected"),
   z.object({

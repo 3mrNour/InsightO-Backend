@@ -56,7 +56,10 @@ export const createFormSchema = z.object({
     is_anonymous: z.boolean().optional().default(false),
     is_active: z.boolean().optional().default(true),
 
-    department_id: objectId.optional()
+    department_id: objectId.optional(),
+    category: z.enum(["GENERAL", "SPECIALIZED"]).optional().default("GENERAL"),
+    course_id: objectId.optional(),
+    instructor_id: objectId.optional()
   })
   .refine((data) => {
     // 🚨 Business rule: evaluator != subject

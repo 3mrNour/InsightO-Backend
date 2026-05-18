@@ -14,6 +14,8 @@ import taskSubmittionRoutes from "./modules/taskSubmittion/taskSubmittion.route.
 import courseRoutes from "./modules/course/course.route.js";
 import cycleRoutes from "./modules/cycle/cycle.route.js";
 import ingestionroute from "./modules/AI/ingestion.route.js";
+import gradingRoute from "./modules/AI/grading.route.js";
+import formGeneratorRoute from "./modules/AI/formGenerator.route.js";
 import formAIRoute from "./modules/AI/formAI.route.js";
 
 
@@ -66,6 +68,8 @@ export function createApp() {
 
   // AI routes
   app.use("/api/ai", ingestionroute);
+  app.use("/api/ai", gradingRoute);
+  app.use("/api/ai", formGeneratorRoute);
   app.use("/api/ai", formAIRoute);
 
   // ─── Error Handling ─────────────────────────────────────────────────────────

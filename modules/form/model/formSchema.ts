@@ -14,6 +14,9 @@ export interface IForm extends Document {
   is_anonymous: boolean;
   is_active: boolean;
   department_id?: Types.ObjectId;
+  category: 'GENERAL' | 'SPECIALIZED';
+  course_id?: Types.ObjectId;
+  instructor_id?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,6 +60,20 @@ const formSchema = new Schema<IForm>({
   department_id: { 
     type: Schema.Types.ObjectId, 
     ref: 'Department' 
+  },
+  category: {
+    type: String,
+    enum: ['GENERAL', 'SPECIALIZED'],
+    default: 'GENERAL',
+    required: true
+  },
+  course_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'Course'
+  },
+  instructor_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'User'
   },
 }, { 
   timestamps: true,

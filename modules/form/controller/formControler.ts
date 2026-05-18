@@ -12,7 +12,10 @@ export const createForm = async (req: Request, res: Response, next: NextFunction
       evaluator_roles,
       subject_role,
       is_anonymous,
-      department_id
+      department_id,
+      category,
+      course_id,
+      instructor_id
     } = req.body;
 
     const form = await Form.create({
@@ -22,6 +25,9 @@ export const createForm = async (req: Request, res: Response, next: NextFunction
       subject_role,
       is_anonymous,
       department_id,
+      category,
+      course_id,
+      instructor_id,
       creator_id: user._id
     });
 
@@ -40,9 +46,15 @@ export const createForm = async (req: Request, res: Response, next: NextFunction
 export const getAllForms = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = (req as any).user;
-    const forms = await Form.find({
-      creator_id: user._id
-    }).populate({
+    let query: any = {};
+    
+    if (user.role === "STUDENT") {
+      query = { is_active: true, evaluator_roles: "STUDENT" };
+    } else {
+      query = { creator_id: user._id };
+    }
+
+    const forms = await Form.find(query).populate({
       path: 'questions',
       select: 'label title description type required options ai_tag order'
     }).populate({
@@ -75,12 +87,15 @@ export const getFormById = async (req: Request, res: Response, next: NextFunctio
     }
     const isCreator = form.creator_id.toString() === user._id.toString();
     const isAdmin = ["ADMIN", "HOD"].includes(user.role);
+    const isEvaluator = form.evaluator_roles.includes(user.role);
 
     if (!form.is_active && !isCreator && !isAdmin) {
       return next(new AppError("Form is not active", 403));
     }
-    if (!isCreator && !isAdmin) {
-      return next(new AppError("You don't own this form", 403));
+    
+    const isAllowed = isCreator || isAdmin || (form.is_active && isEvaluator);
+    if (!isAllowed) {
+      return next(new AppError("You don't have permission to access this form", 403));
     }
     res.json({
       status: "success",
@@ -131,7 +146,7 @@ export const updateFormSettings = async (req: Request, res: Response, next: Next
       return next(new AppError("Not allowed", 403));
     }
     const updates: any = {};
-    ["title", "description", "is_active", "is_anonymous"].forEach(field => {
+    ["title", "description", "is_active", "is_anonymous", "category", "course_id", "instructor_id"].forEach(field => {
       if (req.body[field] !== undefined) {
         updates[field] = req.body[field];
       }
