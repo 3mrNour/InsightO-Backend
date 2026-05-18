@@ -12,7 +12,10 @@ export const createForm = async (req: Request, res: Response, next: NextFunction
       evaluator_roles,
       subject_role,
       is_anonymous,
-      department_id
+      department_id,
+      category,
+      course_id,
+      instructor_id
     } = req.body;
 
     const form = await Form.create({
@@ -22,6 +25,9 @@ export const createForm = async (req: Request, res: Response, next: NextFunction
       subject_role,
       is_anonymous,
       department_id,
+      category,
+      course_id,
+      instructor_id,
       creator_id: user._id
     });
 
@@ -131,7 +137,7 @@ export const updateFormSettings = async (req: Request, res: Response, next: Next
       return next(new AppError("Not allowed", 403));
     }
     const updates: any = {};
-    ["title", "description", "is_active", "is_anonymous"].forEach(field => {
+    ["title", "description", "is_active", "is_anonymous", "category", "course_id", "instructor_id"].forEach(field => {
       if (req.body[field] !== undefined) {
         updates[field] = req.body[field];
       }
