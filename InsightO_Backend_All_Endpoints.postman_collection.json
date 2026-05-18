@@ -843,6 +843,32 @@
             },
             "url": "{{baseUrl}}/api/ai/grade-submission"
           }
+        },
+        {
+          "name": "Analyze Form (Basic Feedback)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ai/analyze-form/{{formId}}"
+          }
+        },
+        {
+          "name": "Analyze Form (Deep/Global Feedback)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/ai/analyze-form/{{formId}}/deep"
+          }
         }
       ]
     }
