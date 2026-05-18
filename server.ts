@@ -1,11 +1,17 @@
 
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, ".env") });
+
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 import { createApp } from './app.js';
 import mongoose from "mongoose";
-import dotenv from "dotenv";
 import {dbConnection} from "./config/dataBase.js"
-dotenv.config();
 
 dbConnection();
 

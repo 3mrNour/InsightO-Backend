@@ -39,8 +39,8 @@ const validateAnswerValue = (question: any, value: any) => {
       break;
 
     case "multiple_choice":
-      if (!Array.isArray(value)) {
-        throw new AppError(`Answer for "${question.label}" must be a list of selections.`, 400);
+      if (typeof value !== "string" && !Array.isArray(value)) {
+        throw new AppError(`Answer for "${question.label}" must be a selection or list of selections.`, 400);
       }
       break;
 

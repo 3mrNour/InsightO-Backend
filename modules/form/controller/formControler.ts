@@ -46,9 +46,15 @@ export const createForm = async (req: Request, res: Response, next: NextFunction
 export const getAllForms = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = (req as any).user;
-    const forms = await Form.find({
-      creator_id: user._id
-    }).populate({
+    let query: any = {};
+    
+    if (user.role === "STUDENT") {
+      query = { is_active: true, evaluator_roles: "STUDENT" };
+    } else {
+      query = { creator_id: user._id };
+    }
+
+    const forms = await Form.find(query).populate({
       path: 'questions',
       select: 'label title description type required options ai_tag order'
     }).populate({
@@ -81,12 +87,15 @@ export const getFormById = async (req: Request, res: Response, next: NextFunctio
     }
     const isCreator = form.creator_id.toString() === user._id.toString();
     const isAdmin = ["ADMIN", "HOD"].includes(user.role);
+    const isEvaluator = form.evaluator_roles.includes(user.role);
 
     if (!form.is_active && !isCreator && !isAdmin) {
       return next(new AppError("Form is not active", 403));
     }
-    if (!isCreator && !isAdmin) {
-      return next(new AppError("You don't own this form", 403));
+    
+    const isAllowed = isCreator || isAdmin || (form.is_active && isEvaluator);
+    if (!isAllowed) {
+      return next(new AppError("You don't have permission to access this form", 403));
     }
     res.json({
       status: "success",
