@@ -15,6 +15,7 @@ import courseRoutes from "./modules/course/course.route.js";
 import cycleRoutes from "./modules/cycle/cycle.route.js";
 import ingestionroute from "./modules/AI/ingestion.route.js";
 import gradingRoute from "./modules/AI/grading.route.js";
+import formGeneratorRoute from "./modules/AI/formGenerator.route.js";
 
 export function createApp() {
   const app = express();
@@ -66,6 +67,7 @@ export function createApp() {
   // AI routes
   app.use("/api/ai", ingestionroute);
   app.use("/api/ai", gradingRoute);
+  app.use("/api/ai", formGeneratorRoute);
 
   // ─── Error Handling ─────────────────────────────────────────────────────────
   app.use(errorHandler);
