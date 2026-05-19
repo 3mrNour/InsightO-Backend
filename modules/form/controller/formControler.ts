@@ -161,3 +161,30 @@ export const updateFormSettings = async (req: Request, res: Response, next: Next
     next(error);
   }
 };
+
+export const getPublicFormById = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const form = await Form.findById(req.params.id)
+      .populate({
+        path: 'questions',
+        select: 'label title description type required options ai_tag order'
+      }).populate({
+        path: 'creator_id',
+        select: 'name email'
+      });
+    if (!form) {
+      return next(new AppError("Form not found", 404));
+    }
+
+    if (!form.is_active || form.category !== 'GENERAL') {
+      return next(new AppError("This form is not publicly accessible", 403));
+    }
+    
+    res.json({
+      status: "success",
+      data: form
+    });
+  } catch (error) {
+    next(error);
+  }
+};

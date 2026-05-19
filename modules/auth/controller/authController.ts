@@ -373,6 +373,31 @@ export const getPendingUsersForAdmin = async (_req: Request, res: Response, next
   }
 };
 
+export const getProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const user = (req as any).user;
+    let profileData: any = null;
+
+    if (user.role === UserSchema.STUDENT) {
+      profileData = await StudentProfile.findOne({ userId: user._id }).populate('departmentId');
+    } else if (user.role === UserSchema.INSTRUCTOR) {
+      profileData = await InstructorProfile.findOne({ userId: user._id }).populate('departmentId');
+    } else if (user.role === UserSchema.HOD) {
+      profileData = await HODProfile.findOne({ userId: user._id }).populate('departmentId');
+    }
+
+    const userData = user.toObject();
+    if (profileData) {
+      userData.departmentId = profileData.departmentId;
+      if (profileData.academicYear) userData.academicYear = profileData.academicYear;
+    }
+
+    res.status(200).json({ status: 'success', user: userData });
+  } catch (error: any) {
+    next(new AppError(error.message || 'Error fetching profile', 500));
+  }
+};
+
 export const updateProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const userId = (req as any).user.id;

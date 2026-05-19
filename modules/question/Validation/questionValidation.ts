@@ -9,6 +9,7 @@ const questionTypes = z.enum([
   "long_text",
   "linear_scale",
   "multiple_choice",
+  "checkbox",
   "file"
 ]);
 
@@ -55,22 +56,22 @@ export const createQuestionSchema = z.object({
     order: z.number().int().min(1, "Order must be at least 1")
   })
     .superRefine((data, ctx) => {
-      // 🎯 multiple_choice requires options
-      if (data.type === "multiple_choice") {
+      // 🎯 multiple_choice and checkbox require options
+      if (data.type === "multiple_choice" || data.type === "checkbox") {
         if (!data.options || data.options.length < 2) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "Multiple choice requires at least 2 options",
+            message: "Multiple choice or checkbox requires at least 2 options",
             path: ["options"]
           });
         }
       }
 
       // 🎯 Other types cannot have options
-      if (data.type !== "multiple_choice" && data.options) {
+      if (data.type !== "multiple_choice" && data.type !== "checkbox" && data.options) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: "Options only allowed for multiple_choice",
+          message: "Options only allowed for multiple_choice and checkbox",
           path: ["options"]
         });
       }

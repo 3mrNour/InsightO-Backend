@@ -9,6 +9,7 @@ export type QuestionType =
   | "long_text"
   | "linear_scale"
   | "multiple_choice"
+  | "checkbox"
   | "file";
 
 // ─── File Config Interface ────────────────────────────────────────────────────
@@ -79,7 +80,7 @@ const questionSchema = new Schema<IQuestion>(
 
     type: {
       type: String,
-      enum: ["short_text", "long_text", "linear_scale", "multiple_choice", "file"],
+      enum: ["short_text", "long_text", "linear_scale", "multiple_choice", "checkbox", "file"],
       required: true,
     },
 

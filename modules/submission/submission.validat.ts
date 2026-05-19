@@ -58,3 +58,8 @@ export const createSubmissionSchema = z.object({
   body: submissionBodySchema,
   params: submissionParamsSchema,
 });
+
+export const createPublicSubmissionSchema = z.object({
+  body: submissionBodySchema.omit({ subject_id: true }).extend({ subject_id: objectId.optional() }),
+  params: submissionParamsSchema,
+});

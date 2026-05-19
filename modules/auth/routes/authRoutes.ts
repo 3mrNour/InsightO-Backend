@@ -59,6 +59,7 @@ import {
   verifyOTP, // الكنترولر المسؤول عن نقل البيانات من التيمب للأصلي
   approvePendingUser,
   getPendingUsersForAdmin,
+  getProfile,
   updateProfile,
   changePassword
 } from '../controller/authController.js';
@@ -107,9 +108,7 @@ router.patch(
 
 import { upload } from '../../../utils/upload/multerConfig.js';
 
-router.get('/profile', protect, (req, res) => {
-  res.status(200).json({ status: 'success', user: (req as any).user });
-});
+router.get('/profile', protect, getProfile);
 
 router.put('/profile', protect, upload.single('profileImage'), updateProfile);
 router.patch('/profile/password', protect, changePassword);
