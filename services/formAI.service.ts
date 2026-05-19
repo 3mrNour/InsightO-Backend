@@ -1,11 +1,14 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import Form from "../modules/form/model/formSchema.js";
 import Question from "../modules/question/models/Question_Schema.js";
 import Submission from "../modules/submission/submission.model.js";
 import { AppError } from "../utils/AppError.js";
 
-// ─── Interfaces ──────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const TOKEN_LIMIT = 80_000;
+
+// ─── Interfaces ───────────────────────────────────────────────────────────────
 
 export interface TagAnalysisResult {
   summary: string;
@@ -13,12 +16,17 @@ export interface TagAnalysisResult {
   strengths: string[];
   weaknesses: string[];
   action_items: string[];
+  score?: number;
 }
 
 export interface GlobalAnalysisResult {
   overall_summary: string;
   key_problems: string[];
   recommendations: string[];
+  overall?: {
+    score: number;
+    summary: string;
+  };
 }
 
 export interface FormAnalysisPayload {
@@ -30,7 +38,30 @@ export interface FormDeepAnalysisPayload {
   global: GlobalAnalysisResult;
 }
 
-// ─── LLM Singleton ───────────────────────────────────────────────────────────
+// ─── Token Estimation Middleware ──────────────────────────────────────────────
+
+/**
+ * Estimates token count from a string using chars/4 heuristic.
+ */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Enforces the 80k token limit BEFORE any LLM call.
+ * Throws AppError 429 if exceeded.
+ */
+export function enforceTokenLimit(text: string): void {
+  const tokens = estimateTokens(text);
+  if (tokens > TOKEN_LIMIT) {
+    throw new AppError(
+      `Token limit exceeded. Please reduce dataset. Estimated tokens: ${tokens}, limit: ${TOKEN_LIMIT}`,
+      429
+    );
+  }
+}
+
+// ─── LLM Singleton ────────────────────────────────────────────────────────────
 
 let _llm: ChatOpenAI | null = null;
 
@@ -42,49 +73,67 @@ function getLLM(): ChatOpenAI {
     }
     _llm = new ChatOpenAI({
       modelName: "gpt-4o-mini",
-      temperature: 0.2, // deterministic and highly analytical
+      temperature: 0.2,
       openAIApiKey: apiKey,
     });
   }
   return _llm;
 }
 
-// ─── Form AI Service ─────────────────────────────────────────────────────────
+// ─── JSON Cleanup Helper ──────────────────────────────────────────────────────
+
+function parseJsonResponse<T>(raw: string): T {
+  const cleaned = raw.trim();
+  const startIdx = cleaned.indexOf("{");
+  const endIdx = cleaned.lastIndexOf("}");
+  
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    const jsonStr = cleaned.substring(startIdx, endIdx + 1);
+    return JSON.parse(jsonStr) as T;
+  }
+  
+  const standardCleaned = cleaned
+    .replace(/^```(?:json)?/im, "")
+    .replace(/```$/m, "")
+    .trim();
+  return JSON.parse(standardCleaned) as T;
+}
+
+// ─── Form AI Service ──────────────────────────────────────────────────────────
 
 export class FormAIService {
   /**
-   * Part 1: Data Extraction
-   * Fetches all submissions, maps answers to questions, resolves ai_tag,
-   * groups by ai_tag, filters empty/nulls, and limits to 100 answers per tag.
+   * Step 1: Data Extraction
+   * Fetches all submissions, maps answers to questions by ai_tag,
+   * groups, filters empty/nulls, limits to 100 answers per tag.
    */
-  public static async aggregateAnswersByTag(formId: string): Promise<Record<string, string[]>> {
-    // 1. Fetch form to verify existence
+  public static async aggregateAnswersByTag(
+    formId: string
+  ): Promise<Record<string, string[]>> {
+    // Verify form exists
     const form = await Form.findById(formId);
-    if (!form) {
-      throw new AppError("Form not found", 404);
-    }
+    if (!form) throw new AppError("Form not found", 404);
 
-    // 2. Fetch all questions for this form and build a map of question_id -> ai_tag
+    // Build question → ai_tag map
     const questions = await Question.find({ form_id: formId });
     const questionTagMap = new Map<string, string>();
     for (const q of questions) {
-      if (q.ai_tag && q.ai_tag.trim()) {
+      if (q.ai_tag?.trim()) {
         questionTagMap.set(q._id.toString(), q.ai_tag.trim().toLowerCase());
       }
     }
 
-    // 3. Fetch all submissions for this form
+    // Fetch all submissions
     const submissions = await Submission.find({ form_id: formId });
 
-    // 4. Extract and group answers by tag
-    const groupedAnswers: Record<string, string[]> = {};
+    // Group answers by tag
+    const grouped: Record<string, string[]> = {};
 
     for (const sub of submissions) {
       for (const answer of sub.answers) {
         if (!answer.question_id) continue;
-        const qId = answer.question_id.toString();
-        const tag = questionTagMap.get(qId);
-        if (!tag) continue; // Skip if question has no ai_tag
+        const tag = questionTagMap.get(answer.question_id.toString());
+        if (!tag) continue;
 
         const val = answer.value;
         if (val === undefined || val === null || val === "") continue;
@@ -95,117 +144,122 @@ export class FormAIService {
         } else if (typeof val === "number") {
           parsedAnswer = String(val);
         } else if (Array.isArray(val)) {
-          // Flatten array selections
           const filtered = val.filter((v: any) => v !== undefined && v !== null && v !== "");
-          if (filtered.length > 0) {
-            parsedAnswer = filtered.join(", ");
-          }
+          if (filtered.length > 0) parsedAnswer = filtered.join(", ");
         } else if (typeof val === "object") {
-          if (val.url) {
-            parsedAnswer = `Uploaded file: ${val.fileName || "File"} (${val.url})`;
-          } else {
-            parsedAnswer = JSON.stringify(val);
-          }
+          parsedAnswer = (val as any).url
+            ? `Uploaded file: ${(val as any).fileName || "File"} (${(val as any).url})`
+            : JSON.stringify(val);
         }
 
         if (parsedAnswer) {
-          if (!groupedAnswers[tag]) {
-            groupedAnswers[tag] = [];
-          }
-          groupedAnswers[tag].push(parsedAnswer);
+          if (!grouped[tag]) grouped[tag] = [];
+          grouped[tag].push(parsedAnswer);
         }
       }
     }
 
-    // 5. Apply limits: max 100 answers per tag (Performance optimization & safety)
-    const limitedGroupedAnswers: Record<string, string[]> = {};
-    for (const [tag, answers] of Object.entries(groupedAnswers)) {
-      limitedGroupedAnswers[tag] = answers.slice(0, 100);
+    // Limit to 100 answers per tag
+    const limited: Record<string, string[]> = {};
+    for (const [tag, answers] of Object.entries(grouped)) {
+      limited[tag] = answers.slice(0, 100);
     }
-
-    return limitedGroupedAnswers;
+    return limited;
   }
 
   /**
-   * Part 2 & 3: Chunking & Tag-level AI Analysis
-   * Chunk the combined answers of a tag and analyze them using GPT-4o.
+   * Step 2: Tag-level AI Analysis (no vector search — pure LLM reasoning).
+   * Enforces token limit before sending to LLM.
    */
-  public static async analyzeSingleTag(tag: string, answers: string[]): Promise<TagAnalysisResult> {
+  public static async analyzeSingleTag(
+    tag: string,
+    answers: string[]
+  ): Promise<TagAnalysisResult> {
     const fallback: TagAnalysisResult = {
-      summary: `Failed to analyze ${tag} due to processing issues or lack of data.`,
+      summary: `Failed to analyze "${tag}" due to processing issues or insufficient data.`,
       sentiment: "neutral",
       strengths: [],
       weaknesses: [],
       action_items: [],
     };
 
-    if (!answers || answers.length === 0) {
-      return fallback;
-    }
+    if (!answers || answers.length === 0) return fallback;
 
     try {
-      // 1. Merge answers into one text body
-      const mergedText = answers.join("\n");
+      // Truncate each answer to 500 chars max to prevent bloating
+      const truncatedAnswers = answers.map((a) => a.slice(0, 500));
+      const context = truncatedAnswers.join("\n---\n");
 
-      // 2. Chunking using RecursiveCharacterTextSplitter (chunk size: 800, overlap: 100)
-      const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 800,
-        chunkOverlap: 100,
-      });
+      const prompt = `You are an AI integrated into a Form Results Dashboard UI.
 
-      const docs = await splitter.createDocuments([mergedText]);
-      let chunks = docs.map((doc) => doc.pageContent);
+You MUST read and understand the grouped form results carefully.
 
-      // 3. Limit to top 12 chunks to avoid token blowing and optimize API latency
-      if (chunks.length > 12) {
-        chunks = chunks.slice(0, 12);
-      }
+Category: "${tag}"
 
-      // 4. Initialize LLM & call GPT-4o
-      const llm = getLLM();
-      const prompt = `You are analyzing grouped student feedback.
+Responses (${truncatedAnswers.length} total):
+${context}
 
-Category: ${tag}
+---------------------------------------
+TASK
+---------------------------------------
+Analyze these responses collectively:
+- detect patterns
+- evaluate quality and consistency
+- identify strengths and weaknesses
 
-Chunks:
-${chunks.join("\n\n")}
-
-Analyze collectively and return STRICT JSON:
+---------------------------------------
+OUTPUT FORMAT (STRICT JSON ONLY)
+---------------------------------------
 {
-  "summary": "A concise, detailed summary of findings and overall patterns.",
-  "sentiment": "positive" or "neutral" or "negative",
-  "strengths": ["list of key strengths identified"],
-  "weaknesses": ["list of key weaknesses or issues highlighted"],
-  "action_items": ["concrete action recommendations to address weaknesses"]
+  "tag": "${tag}",
+  "summary": "2-3 sentence concise summary",
+  "strengths": ["clear actionable strength"],
+  "weaknesses": ["clear actionable weakness"],
+  "action_items": ["practical improvement action"],
+  "score": number (0-100)
 }
 
-Rules:
-- Respond strictly with valid JSON.
-- DO NOT wrap the output in markdown code blocks like \`\`\`json.
-- Keep the response objective, professional, and directly derived from the chunks.`;
+---------------------------------------
+RULES
+---------------------------------------
+- DO NOT return anything except JSON
+- DO NOT use markdown
+- Keep output concise (optimize tokens)
+- Score must reflect actual quality (not random)
+- If responses are weak → lower score
+- If mixed → medium score
+- If strong → high score
+- Infer evaluation even if unclear
+`;
+      // ── Token guard ─────────────────────────────────────────────────────────
+      enforceTokenLimit(prompt);
 
+      const llm = getLLM();
       const response = await llm.invoke(prompt);
-      const rawText = response.content.toString().trim();
+      const raw = response.content.toString().trim();
 
-      // Clean markdown block wrapper if any
-      const cleanJson = rawText
-        .replace(/^```(?:json)?/i, "")
-        .replace(/```$/, "")
-        .trim();
-
-      const parsedResult = JSON.parse(cleanJson);
+      const parsed = parseJsonResponse<any>(raw);
+      const score = typeof parsed.score === "number" ? parsed.score : 50;
+      
+      let sentiment: "positive" | "neutral" | "negative" = "neutral";
+      if (score >= 70) {
+        sentiment = "positive";
+      } else if (score < 45) {
+        sentiment = "negative";
+      }
 
       return {
-        summary: parsedResult.summary || `Analysis completed for ${tag}.`,
-        sentiment: ["positive", "neutral", "negative"].includes(parsedResult.sentiment)
-          ? parsedResult.sentiment
-          : "neutral",
-        strengths: Array.isArray(parsedResult.strengths) ? parsedResult.strengths : [],
-        weaknesses: Array.isArray(parsedResult.weaknesses) ? parsedResult.weaknesses : [],
-        action_items: Array.isArray(parsedResult.action_items) ? parsedResult.action_items : [],
+        summary: parsed.summary || `Analysis completed for "${tag}".`,
+        sentiment,
+        strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+        weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : [],
+        action_items: Array.isArray(parsed.action_items) ? parsed.action_items : [],
+        score,
       };
-    } catch (err) {
-      console.error(`[FormAIService] Error in analyzeSingleTag for tag "${tag}":`, err);
+    } catch (err: any) {
+      // Re-throw token limit errors — controller must surface them
+      if (err instanceof AppError && err.statusCode === 429) throw err;
+      console.error(`[FormAIService] analyzeSingleTag error for tag "${tag}":`, err);
       return fallback;
     }
   }
@@ -213,108 +267,120 @@ Rules:
   /**
    * Part 5 Endpoint 1: Basic Analysis
    * GET /api/ai/analyze-form/:formId
-   * Groups answers, chunks them, and runs tag-level AI feedback collectively.
    */
-  public static async processFormSubmissionAnalysis(formId: string): Promise<FormAnalysisPayload> {
-    try {
-      // 1. Get answers grouped by tag
-      const groupedAnswers = await this.aggregateAnswersByTag(formId);
-      const tags = Object.keys(groupedAnswers);
+  public static async processFormSubmissionAnalysis(
+    formId: string
+  ): Promise<FormAnalysisPayload> {
+    // Aggregate all answers by tag
+    const grouped = await this.aggregateAnswersByTag(formId);
+    const tags = Object.keys(grouped);
+    if (tags.length === 0) return { tags: {} };
 
-      if (tags.length === 0) {
-        return { tags: {} };
-      }
+    // Pre-flight global token check across ALL tag contexts
+    const totalContext = Object.entries(grouped)
+      .map(([tag, answers]) => `${tag}:\n${answers.join("\n")}`)
+      .join("\n\n");
+    enforceTokenLimit(totalContext);
 
-      // 2. Parallel processing using Promise.all
-      const results: Record<string, TagAnalysisResult> = {};
-      await Promise.all(
-        tags.map(async (tag) => {
-          results[tag] = await this.analyzeSingleTag(tag, groupedAnswers[tag]);
-        })
-      );
+    // Parallel tag-level analysis
+    const results: Record<string, TagAnalysisResult> = {};
+    await Promise.all(
+      tags.map(async (tag) => {
+        results[tag] = await this.analyzeSingleTag(tag, grouped[tag]);
+      })
+    );
 
-      return { tags: results };
-    } catch (error: any) {
-      console.error("[FormAIService] processFormSubmissionAnalysis error:", error);
-      // Return empty/safe structure on failure (fail silently/gracefully)
-      return { tags: {} };
-    }
+    return { tags: results };
   }
 
   /**
-   * Part 4 & Part 5 Endpoint 2: Global/Deep Analysis
+   * Part 5 Endpoint 2: Deep Global Analysis
    * GET /api/ai/analyze-form/:formId/deep
-   * Performs tag-level analyses, then aggregates them to perform global/cross-category strategic analysis.
    */
-  public static async processFormDeepAnalysis(formId: string): Promise<FormDeepAnalysisPayload> {
+  public static async processFormDeepAnalysis(
+    formId: string
+  ): Promise<FormDeepAnalysisPayload> {
     const fallbackGlobal: GlobalAnalysisResult = {
       overall_summary: "Unable to run deep cross-category analysis at this time.",
       key_problems: [],
       recommendations: [],
     };
 
-    try {
-      // 1. Perform tag-level analysis first
-      const basicAnalysis = await this.processFormSubmissionAnalysis(formId);
-      const tagsResults = basicAnalysis.tags;
+    // 1. Run tag-level analysis first
+    const basicAnalysis = await this.processFormSubmissionAnalysis(formId);
+    const tagsResults = basicAnalysis.tags;
 
-      if (Object.keys(tagsResults).length === 0) {
-        return { tags: {}, global: fallbackGlobal };
-      }
+    if (Object.keys(tagsResults).length === 0) {
+      return { tags: {}, global: fallbackGlobal };
+    }
 
-      // 2. Build cross-category context (Part 4)
-      const combinedData = JSON.stringify(tagsResults, null, 2);
-
-      // 3. Initialize LLM & Call GPT-4o
-      const llm = getLLM();
-      const prompt = `You are analyzing full student feedback across categories.
+    // 2. Build cross-category context
+    const combinedData = JSON.stringify(tagsResults, null, 2);
+const globalPrompt = `You are analyzing full form feedback across multiple categories.
 
 Data:
 ${combinedData}
 
-Find:
-- Cross-patterns (correlations and patterns spanning multiple categories)
-- System-wide issues (deep underlying, structural, or systemic problems)
-- Hidden problems (implicit student concerns not stated directly)
+---------------------------------------
+TASK
+---------------------------------------
+- Identify cross-patterns across all categories
+- Detect the most critical issues affecting performance
+- Highlight repeated weaknesses across tags
+- Provide practical, high-impact recommendations
 
-Return STRICT JSON:
+---------------------------------------
+OUTPUT (STRICT JSON ONLY)
+---------------------------------------
 {
-  "overall_summary": "A comprehensive strategic synthesis of the cross-category findings.",
-  "key_problems": ["list of top systemic issues across categories"],
-  "recommendations": ["strategic high-impact recommendations for the organization or instructor"]
+  "overall": {
+    "score": number (0-100),
+    "summary": "2-3 sentence overall evaluation"
+  },
+  "key_problems": [
+    "clear major problem derived from multiple tags"
+  ],
+  "recommendations": [
+    "practical, actionable improvement recommendation"
+  ]
 }
 
-Rules:
-- Respond strictly with valid JSON.
-- DO NOT wrap the output in markdown code blocks like \`\`\`json.
-- Analyze how issues in one area could be causing or related to issues in another.`;
+---------------------------------------
+RULES
+---------------------------------------
+- Return ONLY JSON (no text, no markdown)
+- Be concise and direct
+- Do NOT hallucinate data not present in tags
+- Problems must be cross-category (not single tag)
+- Recommendations must directly solve the problems
+- Score must reflect overall real performance
+`;
 
-      const response = await llm.invoke(prompt);
-      const rawText = response.content.toString().trim();
+    // ── Token guard ──────────────────────────────────────────────────────────
+    enforceTokenLimit(globalPrompt);
 
-      const cleanJson = rawText
-        .replace(/^```(?:json)?/i, "")
-        .replace(/```$/, "")
-        .trim();
-
-      const parsedGlobal = JSON.parse(cleanJson);
+    try {
+      const llm = getLLM();
+      const response = await llm.invoke(globalPrompt);
+      const raw = response.content.toString().trim();
+      const parsed = parseJsonResponse<any>(raw);
+      const overall = parsed.overall || {};
 
       const global: GlobalAnalysisResult = {
-        overall_summary: parsedGlobal.overall_summary || "Strategic deep analysis completed successfully.",
-        key_problems: Array.isArray(parsedGlobal.key_problems) ? parsedGlobal.key_problems : [],
-        recommendations: Array.isArray(parsedGlobal.recommendations) ? parsedGlobal.recommendations : [],
+        overall_summary: overall.summary || parsed.overall_summary || "Strategic deep analysis completed successfully.",
+        key_problems: Array.isArray(parsed.key_problems) ? parsed.key_problems : [],
+        recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations : [],
+        overall: {
+          score: typeof overall.score === "number" ? overall.score : 70,
+          summary: overall.summary || "Analysis complete."
+        }
       };
 
-      return {
-        tags: tagsResults,
-        global,
-      };
-    } catch (error: any) {
-      console.error("[FormAIService] processFormDeepAnalysis error:", error);
-      return {
-        tags: {},
-        global: fallbackGlobal,
-      };
+      return { tags: tagsResults, global };
+    } catch (err: any) {
+      if (err instanceof AppError && err.statusCode === 429) throw err;
+      console.error("[FormAIService] processFormDeepAnalysis error:", err);
+      return { tags: tagsResults, global: fallbackGlobal };
     }
   }
 }

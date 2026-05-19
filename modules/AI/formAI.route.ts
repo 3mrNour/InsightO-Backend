@@ -4,14 +4,21 @@ import { protect, authorizeRoles } from "../../middlewares/authMiddleware.js";
 
 const router = Router();
 
-// Protect all analysis routes - only administrative/instructor roles should access aggregated data
-router.use(protect);
-router.use(authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"));
+// GET /api/ai/analyze-form/:formId/deep  ← frontend: /ai/analyze-form/${formId}/deep
+// Must be defined BEFORE the base route to avoid Express matching "deep" as a formId
+router.get(
+  "/analyze-form/:formId/deep", 
+  protect, 
+  authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"), 
+  getFormDeepAnalysis
+);
 
-// GET /api/ai/analyze-form/:formId
-router.get("/analyze-form/:formId", getFormSubmissionAnalysis);
-
-// GET /api/ai/analyze-form/:formId/deep
-router.get("/analyze-form/:formId/deep", getFormDeepAnalysis);
+// GET /api/ai/analyze-form/:formId  ← frontend: /ai/analyze-form/${formId}
+router.get(
+  "/analyze-form/:formId", 
+  protect, 
+  authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"), 
+  getFormSubmissionAnalysis
+);
 
 export default router;

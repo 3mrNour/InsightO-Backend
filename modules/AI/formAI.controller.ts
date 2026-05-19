@@ -5,7 +5,6 @@ import { AppError } from "../../utils/AppError.js";
 /**
  * Basic Tag-level Form Feedback Analysis
  * GET /api/ai/analyze-form/:formId
- * Aggregates answers by tag, chunks them, and runs tag-level AI feedback collectively.
  */
 export const getFormSubmissionAnalysis = async (
   req: Request,
@@ -14,18 +13,27 @@ export const getFormSubmissionAnalysis = async (
 ): Promise<void> => {
   try {
     const { formId } = req.params;
-
     if (!formId || typeof formId !== "string") {
       return next(new AppError("Form ID must be a string", 400));
     }
 
-    const analysisResult = await FormAIService.processFormSubmissionAnalysis(formId);
+    const result = await FormAIService.processFormSubmissionAnalysis(formId);
 
     res.status(200).json({
       status: "success",
-      data: analysisResult,
+      data: result,
     });
   } catch (error: any) {
+    // Surface token limit errors with structured response
+    if (error instanceof AppError && error.statusCode === 429) {
+      res.status(429).json({
+        status: "error",
+        error: "Token limit exceeded",
+        limit: 80000,
+        message: error.message,
+      });
+      return;
+    }
     console.error("[FormAIController] getFormSubmissionAnalysis error:", error);
     next(error);
   }
@@ -34,7 +42,6 @@ export const getFormSubmissionAnalysis = async (
 /**
  * Deep Strategic Cross-Category Form Feedback Analysis
  * GET /api/ai/analyze-form/:formId/deep
- * Performs tag-level analyses and aggregates them to perform global/cross-category strategic analysis.
  */
 export const getFormDeepAnalysis = async (
   req: Request,
@@ -43,18 +50,27 @@ export const getFormDeepAnalysis = async (
 ): Promise<void> => {
   try {
     const { formId } = req.params;
-
     if (!formId || typeof formId !== "string") {
       return next(new AppError("Form ID must be a string", 400));
     }
 
-    const deepAnalysisResult = await FormAIService.processFormDeepAnalysis(formId);
+    const result = await FormAIService.processFormDeepAnalysis(formId);
 
     res.status(200).json({
       status: "success",
-      data: deepAnalysisResult,
+      data: result,
     });
   } catch (error: any) {
+    // Surface token limit errors with structured response
+    if (error instanceof AppError && error.statusCode === 429) {
+      res.status(429).json({
+        status: "error",
+        error: "Token limit exceeded",
+        limit: 80000,
+        message: error.message,
+      });
+      return;
+    }
     console.error("[FormAIController] getFormDeepAnalysis error:", error);
     next(error);
   }
