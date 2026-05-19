@@ -40,7 +40,8 @@ import {
   getAllForms,
   getFormById,
   deleteForm,
-  updateFormSettings
+  updateFormSettings,
+  getPublicFormById
 } from "../controller/formControler.js";
 
 import { protect, authorizeRoles } from "../../../middlewares/authMiddleware.js";
@@ -56,6 +57,12 @@ router.post(
   authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"),
   validate(createFormSchema),
   createForm
+);
+
+// Get Public Form
+router.get(
+  "/public/:id",
+  getPublicFormById
 );
 
 //  Get My Forms

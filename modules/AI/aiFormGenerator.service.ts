@@ -2,23 +2,31 @@ import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
 
 const FORM_GENERATION_PROMPT = PromptTemplate.fromTemplate(`
-You are an expert academic form designer. Your task is to generate a list of questions for an academic form based on the user's prompt.
+You are an expert academic form designer. Your task is to generate an academic form based on the user's prompt.
 
 USER PROMPT:
 {prompt}
 
 INSTRUCTIONS:
-- You must return ONLY a JSON object with a single key "questions" containing an array of objects.
-- Each object MUST represent a question and strictly adhere to the following schema.
-- The "type" MUST be exactly one of: "short_text", "long_text", "linear_scale", "multiple_choice", "file".
+- You must return ONLY a JSON object representing the full form. It must contain exactly these keys: "title", "description", and "questions".
+- STRICT INSTRUCTION: Act as a highly professional academic professor. Write a detailed, formal description for the form. NEVER mention that this is AI-generated, synthesized, or automated.
+- The "questions" key must be an array of objects, where each object represents a question and strictly adheres to the schema below.
+- The "type" MUST be exactly one of: "short_text", "long_text", "linear_scale", "multiple_choice", "checkbox", "file".
 - Do not include markdown formatting like \`\`\`json. Just raw valid JSON.
+
+REQUIRED JSON STRUCTURE:
+{{
+  "title": "...",
+  "description": "...",
+  "questions": [ ... ]
+}}
 
 SCHEMA FOR EACH QUESTION:
 {{
   "label": "The question text",
-  "type": "short_text | long_text | linear_scale | multiple_choice | file",
+  "type": "short_text | long_text | linear_scale | multiple_choice | checkbox | file",
   "required": true or false,
-  "options": ["Option 1", "Option 2"] (ONLY required if type is "multiple_choice"),
+  "options": ["Option 1", "Option 2"] (ONLY required if type is "multiple_choice" or "checkbox"),
   "scale": {{ "min": 1, "max": 5 }} (ONLY required if type is "linear_scale")
 }}
 
@@ -43,7 +51,7 @@ function getLLM(): ChatOpenAI {
   return _llm;
 }
 
-export async function generateFormQuestions(prompt: string): Promise<any[]> {
+export async function generateFormQuestions(prompt: string): Promise<{ title: string; description: string; questions: any[] }> {
   const llm = getLLM();
   const formattedPrompt = await FORM_GENERATION_PROMPT.format({ prompt });
   const response = await llm.invoke(formattedPrompt);
@@ -66,5 +74,9 @@ export async function generateFormQuestions(prompt: string): Promise<any[]> {
     throw new Error("Invalid output format: missing 'questions' array.");
   }
 
-  return parsed.questions;
+  return {
+    title: parsed.title || "AI Generated Assessment",
+    description: parsed.description || "",
+    questions: parsed.questions
+  };
 }

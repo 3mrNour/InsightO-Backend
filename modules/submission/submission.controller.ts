@@ -171,6 +171,92 @@ export const createSubmission = asyncWrap(async (req: Request, res: Response, ne
 });
 
 /**
+ * createPublicSubmission
+ * Handles public responses for GENERAL forms without authentication.
+ */
+export const createPublicSubmission = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
+  const formId = req.params.formId as string;
+  const { answers } = req.body;
+
+  if (!Array.isArray(answers) || answers.length === 0) {
+    return next(new AppError("Answers must be a non-empty array", 400));
+  }
+
+  // prevent duplicate answers
+  const seen = new Set();
+  for (const a of answers) {
+    if (seen.has(a.question_id)) {
+      return next(new AppError(`Duplicate answer for question ${a.question_id}`, 400));
+    }
+    seen.add(a.question_id);
+  }
+
+  // fetch form
+  const form = await Form.findById(formId);
+  if (!form) return next(new AppError("Form not found", 404));
+
+  // check form state and category
+  if (!form.is_active) {
+    return next(new AppError("Form is not active", 400));
+  }
+  
+  if (form.category !== "GENERAL") {
+    return next(new AppError("This form is not publicly accessible.", 403));
+  }
+
+  // fetch questions
+  const questions = await Question.find({ form_id: formId });
+  const questionMap = new Map(questions.map(q => [q._id.toString(), q]));
+
+  // validate answers
+  for (const answer of answers) {
+    const question = questionMap.get(answer.question_id);
+    if (!question) {
+      return next(new AppError(`Invalid question ${answer.question_id}`, 400));
+    }
+    validateAnswerValue(question, answer.value);
+  }
+
+  // required questions
+  const answeredSet = new Set(answers.map(a => a.question_id));
+  for (const q of questions) {
+    if (q.required && !answeredSet.has(q._id.toString())) {
+      return next(new AppError(`Missing required question: ${q.label}`, 400));
+    }
+  }
+
+  // sanitize
+  const sanitizedAnswers = answers.map((a: any) => ({
+    question_id: a.question_id,
+    value: a.value
+  }));
+
+  // save
+  try {
+    const submission = await Submission.create({
+      form_id: formId,
+      answers: sanitizedAnswers,
+    });
+
+    const populatedSubmission = await Submission.findById(submission._id).populate({
+      path: 'form_id',
+      select: 'title description label',
+    }).populate({
+      path: 'answers.question_id',
+      select: 'label type required options'
+    });
+
+    res.status(201).json({
+      status: "success",
+      data: populatedSubmission,
+    });
+
+  } catch (error: any) {
+    next(error);
+  }
+});
+
+/**
  * getFormSubmissions
  * Retrieves all responses for a specific form.
  */

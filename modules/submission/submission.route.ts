@@ -1,12 +1,18 @@
 // src/modules/submission/submission.route.ts
 
 import { Router } from 'express';
-import { createSubmission, getFormSubmissions } from './submission.controller.js';
+import { createSubmission, createPublicSubmission, getFormSubmissions } from './submission.controller.js';
 import { protect, authorizeRoles } from '../../middlewares/authMiddleware.js';
 import { validate } from '../../middlewares/validateMiddleware.js';
-import { createSubmissionSchema } from './submission.validat.js';
+import { createSubmissionSchema, createPublicSubmissionSchema } from './submission.validat.js';
 
 const router = Router();
+
+router.post(
+  '/public/:formId/submissions',
+  validate(createPublicSubmissionSchema),
+  createPublicSubmission
+);
 
 /**
  * POST /api/forms/:formId/submissions

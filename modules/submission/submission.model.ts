@@ -8,8 +8,8 @@ import mongoose, { Schema, Document, Types } from 'mongoose';
  */
 export interface ISubmission extends Document {
   form_id: Types.ObjectId;
-  evaluator_id: Types.ObjectId; // The student submitting the form
-  subject_id: Types.ObjectId;   // The instructor/subject being evaluated
+  evaluator_id?: Types.ObjectId; // The student submitting the form
+  subject_id?: Types.ObjectId;   // The instructor/subject being evaluated
   task_id?: Types.ObjectId;
   answers: {
     question_id: Types.ObjectId;
@@ -35,13 +35,13 @@ const submissionSchema = new Schema<ISubmission>(
     evaluator_id: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      default: undefined, // 👈 إجبار الـ Object لو مش مبعوت ينزل undefined مش null
     },
 
     subject_id: {
       type: Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      default: undefined, // 👈 إجبار الـ Object لو مش مبعوت ينزل undefined مش null
     },
 
     answers: [
@@ -61,25 +61,39 @@ const submissionSchema = new Schema<ISubmission>(
   { timestamps: true },
 );
 
-/**
- * Prevent duplicate submissions.
- * Each evaluator can submit once per (form, subject) pair.
- */
+// ─── الـ Index الذكي والمصحح ──────────────────────────────────────────────────
 submissionSchema.index(
   { form_id: 1, evaluator_id: 1, subject_id: 1 },
-  { unique: true, name: 'form_evaluator_subject_unique' },
+  { 
+    unique: true, 
+    name: 'form_evaluator_subject_unique',
+    // الفلترة هنا مبنية على التأكد التام إن الحقول دي نوعها مقيد بـ ObjectId حقيقي فقط
+    partialFilterExpression: {
+      evaluator_id: { $type: "objectId" },
+      subject_id: { $type: "objectId" }
+    }
+  }
 );
 
-// Backward-compat cleanup: remove the old two-field unique index if present.
+// ─── تنظيف وحذف الـ Indexes القديمة أوتوماتيكياً لمنع الـ Collisions ───────────
 submissionSchema.on('init', async (model: mongoose.Model<ISubmission>) => {
   try {
     const indexes = await model.collection.indexes();
-    const legacyIndex = indexes.find((index) => index.name === 'form_id_1_evaluator_id_1');
-    if (legacyIndex) {
+    
+    // 1. حذف الـ Index القديم خالص (لو موجود)
+    if (indexes.find((index) => index.name === 'form_id_1_evaluator_id_1')) {
       await model.collection.dropIndex('form_id_1_evaluator_id_1');
     }
-  } catch {
-    // Ignore index cleanup failures; schema index creation still proceeds.
+
+    // 2. فحص وإجبار حذف الـ Index الكاش اللي اتعمل بـ sparse أو بـ nulls قديمة
+    const existingUniqueIndex = indexes.find((index) => index.name === 'form_evaluator_subject_unique');
+    if (existingUniqueIndex) {
+      // هنعمله drop عشان نضمن إن التعديل الجديد للـ partialFilterExpression يسمع حالا
+      await model.collection.dropIndex('form_evaluator_subject_unique');
+      console.log('🔄 Old unique index dropped to apply new partial filter expressions.');
+    }
+  } catch (error) {
+    console.log('⚠️ Index synchronization log:', error);
   }
 });
 
