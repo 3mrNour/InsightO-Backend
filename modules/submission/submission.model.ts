@@ -79,18 +79,37 @@ submissionSchema.index(
 submissionSchema.on('init', async (model: mongoose.Model<ISubmission>) => {
   try {
     const indexes = await model.collection.indexes();
-    
+
     // 1. حذف الـ Index القديم خالص (لو موجود)
     if (indexes.find((index) => index.name === 'form_id_1_evaluator_id_1')) {
-      await model.collection.dropIndex('form_id_1_evaluator_id_1');
+      try {
+        await model.collection.dropIndex('form_id_1_evaluator_id_1');
+        console.log('🧹 Old index form_id_1_evaluator_id_1 dropped');
+      } catch (err: any) {
+        if (err.codeName === "IndexNotFound") {
+          console.log('⚠️ form_id_1_evaluator_id_1 already removed');
+        } else {
+          throw err;
+        }
+      }
     }
 
-    // 2. فحص وإجبار حذف الـ Index الكاش اللي اتعمل بـ sparse أو بـ nulls قديمة
-    const existingUniqueIndex = indexes.find((index) => index.name === 'form_evaluator_subject_unique');
+    // 2. حذف الـ unique index القديم (لو موجود)
+    const existingUniqueIndex = indexes.find(
+      (index) => index.name === 'form_evaluator_subject_unique'
+    );
+
     if (existingUniqueIndex) {
-      // هنعمله drop عشان نضمن إن التعديل الجديد للـ partialFilterExpression يسمع حالا
-      await model.collection.dropIndex('form_evaluator_subject_unique');
-      console.log('🔄 Old unique index dropped to apply new partial filter expressions.');
+      try {
+        await model.collection.dropIndex('form_evaluator_subject_unique');
+        console.log('🔄 Old unique index dropped to apply new partial filter expressions.');
+      } catch (err: any) {
+        if (err.codeName === "IndexNotFound") {
+          console.log('⚠️ form_evaluator_subject_unique already removed');
+        } else {
+          throw err;
+        }
+      }
     }
   } catch (error) {
     console.log('⚠️ Index synchronization log:', error);
