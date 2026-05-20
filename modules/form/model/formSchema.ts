@@ -23,43 +23,49 @@ export interface IForm extends Document {
 
 // 3. بناء الـ Schema
 const formSchema = new Schema<IForm>({
-  title: { 
-    type: String, 
-    required: [true, 'Form title is required'], 
-    trim: true 
+  title: {
+    type: String,
+    required: [true, 'Form title is required'],
+    trim: true
   },
   description: { type: String },
-  creator_id: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
-  },
-  
-  evaluator_roles: [{
-    type: String,
-    enum: ['ADMIN', 'HOD', 'INSTRUCTOR', 'STUDENT'],
-    required: true
-  }],
-  
-  subject_role: {
-    type: String,
-    enum: ['ADMIN', 'HOD', 'INSTRUCTOR', 'STUDENT'],
+  creator_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
     required: true
   },
 
-  questions: [{ 
-    type: Schema.Types.ObjectId, 
-    ref: 'Question' 
+  evaluator_roles: [{
+    type: String,
+    enum: ['ADMIN', 'HOD', 'INSTRUCTOR', 'STUDENT'],
+    required: function (this: any): boolean {
+      // مطلوب فقط لو الفورم متخصصة (تقييم)
+      return this.category === 'SPECIALIZED';
+    }
   }],
-  
+
+  subject_role: {
+    type: String,
+    enum: ['ADMIN', 'HOD', 'INSTRUCTOR', 'STUDENT'],
+    required: function (this: any): boolean {
+      // مطلوب فقط لو الفورم متخصصة (تقييم)
+      return this.category === 'SPECIALIZED';
+    }
+  },
+
+  questions: [{
+    type: Schema.Types.ObjectId,
+    ref: 'Question'
+  }],
+
   is_anonymous: { type: Boolean, default: false },
   is_active: { type: Boolean, default: true },
-  
- 
-  
-  department_id: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'Department' 
+
+
+
+  department_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'Department'
   },
   category: {
     type: String,
@@ -75,7 +81,7 @@ const formSchema = new Schema<IForm>({
     type: Schema.Types.ObjectId,
     ref: 'User'
   },
-}, { 
+}, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }

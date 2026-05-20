@@ -101,6 +101,11 @@ export const getTaskSubmissions = asyncWrap(async (req: Request, res: Response, 
 
   const submissions = await TaskSubmission.find({ task_id: taskId })
     .populate('submitter_id', 'firstName lastName email nationalId')
+    // 👈 السحر هنا: بنجيب بيانات السؤال (النص، النوع، الخيارات) ونزرعها جوه الإجابة
+    .populate({
+      path: 'form_answers.question_id',
+      select: 'label type options'
+    })
     .sort({ createdAt: -1 });
 
   res.status(200).json({
@@ -146,7 +151,12 @@ export const getMySubmissions = asyncWrap(async (req: Request, res: Response, ne
   const userId = user.id || user._id;
 
   const submissions = await TaskSubmission.find({ submitter_id: userId })
-    .populate('task_id', 'title description deadline ai_grading_rubric status')
+    .populate('task_id', 'title description deadline ai_grading_rubric status task_type form_id')
+    // 👈 وضفناها هنا كمان عشان الطالب لو شاف درجاته يشوف أسئلة الكويز صح
+    .populate({
+      path: 'form_answers.question_id',
+      select: 'label type options'
+    })
     .sort({ createdAt: -1 });
 
   res.status(200).json({

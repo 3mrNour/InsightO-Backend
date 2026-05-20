@@ -49,7 +49,7 @@ export const getAllForms = async (req: Request, res: Response, next: NextFunctio
   try {
     const user = (req as any).user;
     let query: any = {};
-    
+
     if (user.role === "STUDENT") {
       query = { is_active: true, evaluator_roles: "STUDENT" };
     } else {
@@ -89,7 +89,7 @@ export const getFormById = async (req: Request, res: Response, next: NextFunctio
     }
     const isCreator = form.creator_id.toString() === user._id.toString();
     const isAdmin = ["ADMIN", "HOD"].includes(user.role);
-    
+
     // Check if student has an active task assigned with this form
     let isTaskTarget = false;
     if (user.role === "STUDENT") {
@@ -115,11 +115,19 @@ export const getFormById = async (req: Request, res: Response, next: NextFunctio
     if (!form.is_active && !isCreator && !isAdmin && !isTaskTarget) {
       return next(new AppError("Form is not active", 403));
     }
-    
-    const isAllowed = isCreator || isAdmin || isTaskTarget || (form.is_active && isEvaluator);
+
+    // 👈 التعديل الأول: تغييرها لـ let عشان نقدر نعدل قيمتها
+    let isAllowed = isCreator || isAdmin || isTaskTarget || (form.is_active && isEvaluator);
+
+    // 👈 التعديل الثاني: استثناء صريح لدكاترة الـ QUIZ عشان الـ 403 تختفي
+    if (form.category === 'QUIZ' && ["ADMIN", "HOD", "INSTRUCTOR"].includes(user.role)) {
+      isAllowed = true;
+    }
+
     if (!isAllowed) {
       return next(new AppError("You don't have permission to access this form", 403));
     }
+
     res.json({
       status: "success",
       data: form
@@ -202,7 +210,7 @@ export const getPublicFormById = async (req: Request, res: Response, next: NextF
     if (!form.is_active || form.category !== 'GENERAL') {
       return next(new AppError("This form is not publicly accessible", 403));
     }
-    
+
     res.json({
       status: "success",
       data: form
