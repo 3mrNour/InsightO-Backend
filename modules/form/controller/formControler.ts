@@ -2,6 +2,8 @@ import type { Request, Response, NextFunction } from "express";
 import Form from "../model/formSchema.js";
 import Question from "../../question/models/Question_Schema.js";
 import { AppError } from "../../../utils/AppError.js";
+import StudentProfile from "../../profile/model/StudentProfile.js";
+import Task from "../../task/task.model.js";
 
 export const createForm = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -87,13 +89,34 @@ export const getFormById = async (req: Request, res: Response, next: NextFunctio
     }
     const isCreator = form.creator_id.toString() === user._id.toString();
     const isAdmin = ["ADMIN", "HOD"].includes(user.role);
-    const isEvaluator = form.evaluator_roles.includes(user.role);
+    
+    // Check if student has an active task assigned with this form
+    let isTaskTarget = false;
+    if (user.role === "STUDENT") {
+      const studentProfile = await StudentProfile.findOne({ userId: user._id });
+      if (studentProfile) {
+        const taskCount = await Task.countDocuments({
+          form_id: form._id,
+          status: "ACTIVE",
+          $or: [
+            { "target.specific_users": user._id },
+            { "target.course_id": { $in: studentProfile.enrolledCourses } },
+            { "target.department_id": studentProfile.departmentId }
+          ]
+        });
+        if (taskCount > 0) {
+          isTaskTarget = true;
+        }
+      }
+    }
 
-    if (!form.is_active && !isCreator && !isAdmin) {
+    const isEvaluator = form.evaluator_roles.includes(user.role) || isTaskTarget;
+
+    if (!form.is_active && !isCreator && !isAdmin && !isTaskTarget) {
       return next(new AppError("Form is not active", 403));
     }
     
-    const isAllowed = isCreator || isAdmin || (form.is_active && isEvaluator);
+    const isAllowed = isCreator || isAdmin || isTaskTarget || (form.is_active && isEvaluator);
     if (!isAllowed) {
       return next(new AppError("You don't have permission to access this form", 403));
     }

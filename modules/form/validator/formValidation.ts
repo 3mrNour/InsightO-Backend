@@ -57,7 +57,7 @@ export const createFormSchema = z.object({
     is_active: z.boolean().optional().default(true),
 
     department_id: objectId.optional(),
-    category: z.enum(["GENERAL", "SPECIALIZED"]).optional().default("GENERAL"),
+    category: z.enum(["GENERAL", "SPECIALIZED", "QUIZ"]).optional().default("GENERAL"),
     course_id: objectId.optional(),
     instructor_id: objectId.optional()
   })

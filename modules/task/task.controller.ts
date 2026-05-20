@@ -18,6 +18,7 @@ export const createTask = asyncWrap(async (
     target,
     attachments,
     ai_grading_rubric,
+    task_type,
     form_id,
     deadline,
   } = req.body;
@@ -35,6 +36,7 @@ export const createTask = asyncWrap(async (
     description,
     creator_id: user.id || user._id,
     target,
+    task_type,
     attachments,
     ai_grading_rubric,
     form_id,
