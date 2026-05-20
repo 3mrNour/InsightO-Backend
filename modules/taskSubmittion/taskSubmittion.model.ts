@@ -11,6 +11,10 @@ export interface ITaskSubmission extends Document {
     fileName?: string;
     size?: number;
   }[];
+  form_answers?: {
+    question_id: Types.ObjectId;
+    value: any;
+  }[];
   ai_evaluation?: {
     suggested_grade?: number;
     feedback?: string;
@@ -32,6 +36,13 @@ const taskSubmissionSchema = new Schema<ITaskSubmission>(
         fileName: { type: String },
         size: { type: Number },
       },
+    ],
+    // إجابات الفورم (للتاسكات من نوع QUIZ)
+    form_answers: [
+      {
+        question_id: { type: Schema.Types.ObjectId, ref: 'Question' },
+        value: { type: Schema.Types.Mixed }
+      }
     ],
     // 🤖 حقول مجهزة لخطوة الذكاء الاصطناعي القادمة
     ai_evaluation: {

@@ -12,6 +12,7 @@ export interface ITask extends Document {
     course_id?: Types.ObjectId;
     specific_users?: Types.ObjectId[];
   };
+  task_type: 'ATTACHMENT' | 'QUIZ';
   attachments?: {
     url: string;
     fileName?: string;
@@ -41,6 +42,13 @@ const taskSchema = new Schema<ITask>(
       course_id: { type: Schema.Types.ObjectId, ref: "Course" },
       // لو التاسك رايح لأشخاص بعينهم (سواء دكاترة أو طلاب)
       specific_users: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    },
+
+    // نوع التاسك (تاسك عادي بملف ولا فورم)
+    task_type: { 
+      type: String, 
+      enum: ['ATTACHMENT', 'QUIZ'], 
+      default: 'ATTACHMENT' 
     },
 
     // الملفات المرفقة مع التاسك (زي ملف PDF فيه شرح المشروع)

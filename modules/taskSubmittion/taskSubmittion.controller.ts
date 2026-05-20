@@ -8,9 +8,8 @@ import { asyncWrap } from "../../middlewares/asyncWrap.js";
 import { gradeSubmission } from "../AI/aiGrader.service.js";
 import { Chunk } from "../AI/chunk.model.js";
 
-// 1. الطالب بيسلم التاسك
 export const submitTask = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
-  const { content, attachments } = req.body;
+  const { content, attachments, form_answers } = req.body;
   const taskId = req.params.taskId;
   const user = (req as any).user;
   const userId = user.id || user._id;
@@ -41,6 +40,7 @@ export const submitTask = asyncWrap(async (req: Request, res: Response, next: Ne
     submitter_id: userId,
     content,
     attachments,
+    form_answers,
   });
 
   // ─── AI Grading Hook (non-blocking) ────────────────────────────────────────

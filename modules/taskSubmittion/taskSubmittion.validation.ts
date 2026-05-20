@@ -8,11 +8,17 @@ const attachmentSchema = z.object({
   size: z.number().positive("File size must be positive").optional(),
 });
 
+const formAnswerSchema = z.object({
+  question_id: objectId,
+  value: z.any()
+});
+
 export const submitTaskBodySchema = z.object({
   content: z.string().trim().optional(),
   attachments: z.array(attachmentSchema).optional(),
-}).refine(data => data.content || (data.attachments && data.attachments.length > 0), {
-  message: "Submission must contain either content or attachments",
+  form_answers: z.array(formAnswerSchema).optional(),
+}).refine(data => data.content || (data.attachments && data.attachments.length > 0) || (data.form_answers && data.form_answers.length > 0), {
+  message: "Submission must contain either content, attachments, or form answers",
 });
 
 export const submitTaskSchema = z.object({

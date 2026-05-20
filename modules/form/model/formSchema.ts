@@ -14,7 +14,7 @@ export interface IForm extends Document {
   is_anonymous: boolean;
   is_active: boolean;
   department_id?: Types.ObjectId;
-  category: 'GENERAL' | 'SPECIALIZED';
+  category: 'GENERAL' | 'SPECIALIZED' | 'QUIZ';
   course_id?: Types.ObjectId;
   instructor_id?: Types.ObjectId;
   createdAt: Date;
@@ -63,7 +63,7 @@ const formSchema = new Schema<IForm>({
   },
   category: {
     type: String,
-    enum: ['GENERAL', 'SPECIALIZED'],
+    enum: ['GENERAL', 'SPECIALIZED', 'QUIZ'],
     default: 'GENERAL',
     required: true
   },
