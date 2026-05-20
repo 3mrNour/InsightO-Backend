@@ -70,8 +70,8 @@ export const submitTask = asyncWrap(async (req: Request, res: Response, next: Ne
 
       await TaskSubmission.findByIdAndUpdate(submission._id, {
         ai_evaluation: {
-          suggested_grade:  result.proposed_grade,
-          feedback:         result.ai_feedback,
+          suggested_grade: result.proposed_grade,
+          feedback: result.ai_feedback,
           confidence_score: result.confidence,
         },
         status: "AI_GRADED",
@@ -95,7 +95,7 @@ export const submitTask = asyncWrap(async (req: Request, res: Response, next: Ne
 // 2. جلب تسليمات تاسك معين (للدكتور/رئيس القسم)
 export const getTaskSubmissions = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
   const taskId = req.params.taskId;
-  
+
   const task = await Task.findById(taskId);
   if (!task) return next(new AppError("Task not found", 404));
 
@@ -122,7 +122,7 @@ export const finalizeGrade = asyncWrap(async (req: Request, res: Response, next:
 
   const task = submission.task_id as any;
 
- // التأكد إن اللي بيقيم هو صاحب التاسك أو أدمن
+  // التأكد إن اللي بيقيم هو صاحب التاسك أو أدمن
   if (task.creator_id.toString() !== userId.toString() && user.role !== "ADMIN") {
     return next(new AppError("Not authorized to grade this submission", 403));
   }

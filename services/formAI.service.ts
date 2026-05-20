@@ -86,12 +86,12 @@ function parseJsonResponse<T>(raw: string): T {
   const cleaned = raw.trim();
   const startIdx = cleaned.indexOf("{");
   const endIdx = cleaned.lastIndexOf("}");
-  
+
   if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
     const jsonStr = cleaned.substring(startIdx, endIdx + 1);
     return JSON.parse(jsonStr) as T;
   }
-  
+
   const standardCleaned = cleaned
     .replace(/^```(?:json)?/im, "")
     .replace(/```$/m, "")
@@ -102,6 +102,20 @@ function parseJsonResponse<T>(raw: string): T {
 // ─── Form AI Service ──────────────────────────────────────────────────────────
 
 export class FormAIService {
+  public static detectArabic(text: string): boolean {
+    return /[\u0600-\u06FF]/.test(text);
+  }
+
+  public static detectFormLanguage(questions: any[]): "ar" | "en" {
+    if (!questions || questions.length === 0) return "en";
+    let arabicCount = 0;
+    for (const q of questions) {
+      if (q.label && this.detectArabic(q.label)) {
+        arabicCount++;
+      }
+    }
+    return arabicCount > questions.length / 2 ? "ar" : "en";
+  }
   /**
    * Step 1: Data Extraction
    * Fetches all submissions, maps answers to questions by ai_tag,
@@ -120,6 +134,12 @@ export class FormAIService {
     for (const q of questions) {
       if (q.ai_tag?.trim()) {
         questionTagMap.set(q._id.toString(), q.ai_tag.trim().toLowerCase());
+      } else {
+        let fallbackTag = q.label?.trim() || `question_${q.order}`;
+        if (fallbackTag.length > 40) {
+          fallbackTag = fallbackTag.slice(0, 37) + "...";
+        }
+        questionTagMap.set(q._id.toString(), fallbackTag.toLowerCase());
       }
     }
 
@@ -173,7 +193,8 @@ export class FormAIService {
    */
   public static async analyzeSingleTag(
     tag: string,
-    answers: string[]
+    answers: string[],
+    lang: "ar" | "en" = "en"
   ): Promise<TagAnalysisResult> {
     const fallback: TagAnalysisResult = {
       summary: `Failed to analyze "${tag}" due to processing issues or insufficient data.`,
@@ -190,7 +211,14 @@ export class FormAIService {
       const truncatedAnswers = answers.map((a) => a.slice(0, 500));
       const context = truncatedAnswers.join("\n---\n");
 
-      const prompt = `You are an AI integrated into a Form Results Dashboard UI.
+      const prompt = `IMPORTANT:
+- If lang = "ar" → Return ALL output in Arabic
+- If lang = "en" → Return ALL output in English
+- DO NOT mix languages
+
+Active language mode for this response: ${lang === "ar" ? "Arabic (ar)" : "English (en)"}
+
+You are an AI integrated into a Form Results Dashboard UI.
 
 You MUST read and understand the grouped form results carefully.
 
@@ -212,10 +240,10 @@ OUTPUT FORMAT (STRICT JSON ONLY)
 ---------------------------------------
 {
   "tag": "${tag}",
-  "summary": "2-3 sentence concise summary",
-  "strengths": ["clear actionable strength"],
-  "weaknesses": ["clear actionable weakness"],
-  "action_items": ["practical improvement action"],
+  "summary": "2-3 sentence concise summary in the target language",
+  "strengths": ["clear actionable strength in the target language"],
+  "weaknesses": ["clear actionable weakness in the target language"],
+  "action_items": ["practical improvement action in the target language"],
   "score": number (0-100)
 }
 
@@ -230,6 +258,7 @@ RULES
 - If mixed → medium score
 - If strong → high score
 - Infer evaluation even if unclear
+- Keep the JSON keys ("tag", "summary", "strengths", "weaknesses", "action_items", "score") in English, but output all string values in the target language.
 `;
       // ── Token guard ─────────────────────────────────────────────────────────
       enforceTokenLimit(prompt);
@@ -240,7 +269,7 @@ RULES
 
       const parsed = parseJsonResponse<any>(raw);
       const score = typeof parsed.score === "number" ? parsed.score : 50;
-      
+
       let sentiment: "positive" | "neutral" | "negative" = "neutral";
       if (score >= 70) {
         sentiment = "positive";
@@ -271,6 +300,10 @@ RULES
   public static async processFormSubmissionAnalysis(
     formId: string
   ): Promise<FormAnalysisPayload> {
+    // Detect form language
+    const questions = await Question.find({ form_id: formId });
+    const formLanguage = this.detectFormLanguage(questions);
+
     // Aggregate all answers by tag
     const grouped = await this.aggregateAnswersByTag(formId);
     const tags = Object.keys(grouped);
@@ -286,7 +319,7 @@ RULES
     const results: Record<string, TagAnalysisResult> = {};
     await Promise.all(
       tags.map(async (tag) => {
-        results[tag] = await this.analyzeSingleTag(tag, grouped[tag]);
+        results[tag] = await this.analyzeSingleTag(tag, grouped[tag], formLanguage);
       })
     );
 
@@ -306,6 +339,10 @@ RULES
       recommendations: [],
     };
 
+    // Detect form language
+    const questions = await Question.find({ form_id: formId });
+    const formLanguage = this.detectFormLanguage(questions);
+
     // 1. Run tag-level analysis first
     const basicAnalysis = await this.processFormSubmissionAnalysis(formId);
     const tagsResults = basicAnalysis.tags;
@@ -316,7 +353,14 @@ RULES
 
     // 2. Build cross-category context
     const combinedData = JSON.stringify(tagsResults, null, 2);
-const globalPrompt = `You are analyzing full form feedback across multiple categories.
+    const globalPrompt = `IMPORTANT:
+- If lang = "ar" → Return ALL output in Arabic
+- If lang = "en" → Return ALL output in English
+- DO NOT mix languages
+
+Active language mode for this response: ${formLanguage === "ar" ? "Arabic (ar)" : "English (en)"}
+
+You are analyzing full form feedback across multiple categories.
 
 Data:
 ${combinedData}
@@ -335,13 +379,13 @@ OUTPUT (STRICT JSON ONLY)
 {
   "overall": {
     "score": number (0-100),
-    "summary": "2-3 sentence overall evaluation"
+    "summary": "2-3 sentence overall evaluation in the target language"
   },
   "key_problems": [
-    "clear major problem derived from multiple tags"
+    "clear major problem derived from multiple tags in the target language"
   ],
   "recommendations": [
-    "practical, actionable improvement recommendation"
+    "practical, actionable improvement recommendation in the target language"
   ]
 }
 
@@ -354,6 +398,7 @@ RULES
 - Problems must be cross-category (not single tag)
 - Recommendations must directly solve the problems
 - Score must reflect overall real performance
+- Keep the JSON keys ("overall", "score", "summary", "key_problems", "recommendations") in English, but output all string values in the target language.
 `;
 
     // ── Token guard ──────────────────────────────────────────────────────────

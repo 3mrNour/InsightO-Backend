@@ -76,12 +76,12 @@ function parseJsonResponse<T>(raw: string): T {
   const cleaned = raw.trim();
   const startIdx = cleaned.indexOf("{");
   const endIdx = cleaned.lastIndexOf("}");
-  
+
   if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
     const jsonStr = cleaned.substring(startIdx, endIdx + 1);
     return JSON.parse(jsonStr) as T;
   }
-  
+
   const standardCleaned = cleaned
     .replace(/^```(?:json)?/im, "")
     .replace(/```$/m, "")
