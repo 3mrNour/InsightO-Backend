@@ -12,6 +12,7 @@ import departmentRoutes from "./modules/department/routes/departmentRoutes.js";
 import taskRoutes from "./modules/task/task.route.js";
 import taskSubmittionRoutes from "./modules/taskSubmittion/taskSubmittion.route.js";
 import courseRoutes from "./modules/course/course.route.js";
+import studentRoutes from "./modules/student/student.route.js";
 import cycleRoutes from "./modules/cycle/cycle.route.js";
 import ingestionroute from "./modules/AI/ingestion.route.js";
 import formGeneratorRoute from "./modules/AI/formGenerator.route.js";
@@ -55,6 +56,9 @@ export function createApp() {
 
   // Task routes
   app.use("/api/tasks", taskRoutes);
+
+  // Student routes
+  app.use("/api/student", studentRoutes);
 
   // Course routes
   app.use("/api/courses", courseRoutes);
