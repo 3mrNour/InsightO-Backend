@@ -401,7 +401,7 @@ export const getProfile = async (req: Request, res: Response, next: NextFunction
 export const updateProfile = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const userId = (req as any).user.id;
-    const { firstName, lastName, email } = req.body;
+    const { firstName, lastName, email, password } = req.body;
     let profileImage = req.body.profileImage;
     
     // If a file was uploaded, use its URL
@@ -419,6 +419,13 @@ export const updateProfile = async (req: Request, res: Response, next: NextFunct
     if (lastName) user.lastName = lastName;
     if (email) user.email = email;
     if (profileImage) user.profileImage = profileImage;
+    if (password) {
+      if (password.length < 8) {
+        return next(new AppError('Password must be at least 8 characters long', 400));
+      }
+      const salt = await bcryptjs.genSalt(10);
+      user.password = await bcryptjs.hash(password, salt);
+    }
 
     await user.save();
 
