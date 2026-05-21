@@ -12,7 +12,12 @@ export const generateAIForm = async (req: Request, res: Response): Promise<Respo
       });
     }
 
-    const questions = await generateFormQuestions(prompt);
+    const userId = (req as any).user?._id?.toString();
+
+if (!userId) {
+  throw new Error("User ID is required for AI usage tracking");
+}
+    const questions = await generateFormQuestions(prompt, userId);
 
     return res.status(200).json({
       message: "Form generated successfully",

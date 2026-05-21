@@ -8,6 +8,7 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { estimateTokens } from "../../services/formAI.service.js";
 import { AppError } from "../../utils/AppError.js";
+import { invokeWithUsageTracking } from "../../utils/aiUsageTracking.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,8 @@ export interface GradeInput {
   correctAnswers?: string[];
   /** For MSQ: which answers the student selected */
   selectedAnswers?: string[];
+  /** User ID for tracking token usage */
+  userId?: string;
 }
 
 export interface GradeResult {
@@ -140,7 +143,8 @@ function gradeMSQ(
 
 async function gradeLLM(
   content: string,
-  rubric?: string
+  rubric?: string,
+  userId: string = "anonymous"
 ): Promise<GradeResult> {
   // Truncate content to prevent token overflow
   const safeContent = content.slice(0, MAX_CONTENT_CHARS);
@@ -177,7 +181,7 @@ REQUIRED OUTPUT FORMAT:
   guardTokens(prompt);
 
   const llm = getLLM();
-  const response = await llm.invoke(prompt);
+  const response = await invokeWithUsageTracking(llm, userId, prompt);
   const raw = response.content.toString().trim();
 
   let parsed: { proposed_grade: number; ai_feedback: string; confidence: number };
@@ -211,7 +215,7 @@ REQUIRED OUTPUT FORMAT:
  * Throws on failure — callers should wrap in try/catch.
  */
 export async function gradeSubmission(input: GradeInput): Promise<GradeResult> {
-  const { content, rubric, type = "text", correctAnswer, correctAnswers, selectedAnswers } = input;
+  const { content, rubric, type = "text", correctAnswer, correctAnswers, selectedAnswers, userId = "anonymous" } = input;
 
   switch (type) {
     case "mcq": {
@@ -232,7 +236,7 @@ export async function gradeSubmission(input: GradeInput): Promise<GradeResult> {
     case "text":
     default: {
       // For FILE type, caller must have already extracted text into `content`
-      return gradeLLM(content, rubric);
+      return gradeLLM(content, rubric, userId);
     }
   }
 }

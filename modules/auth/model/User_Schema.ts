@@ -22,6 +22,12 @@ const user_Schema = new mongoose.Schema({
   
   isVerified: { type: Boolean, default: false },
 
+  // ─── AI Token Usage Tracking ──────────────────────────────────────
+  ai_tokens_used:  { type: Number, default: 0 },
+  ai_tokens_limit: { type: Number, default: 90_000 },
+  ai_request_count: { type: Number, default: 0 },
+  ai_last_request_at: { type: Date, default: null },
+
   otp: {
     type: String,
     select: false

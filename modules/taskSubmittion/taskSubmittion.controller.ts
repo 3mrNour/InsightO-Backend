@@ -66,6 +66,7 @@ export const submitTask = asyncWrap(async (req: Request, res: Response, next: Ne
       const result = await gradeSubmission({
         content,
         rubric: rubricToUse,
+        userId: task.creator_id.toString(),
       });
 
       await TaskSubmission.findByIdAndUpdate(submission._id, {

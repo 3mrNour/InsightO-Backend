@@ -3,6 +3,7 @@ import Form from "../modules/form/model/formSchema.js";
 import Question from "../modules/question/models/Question_Schema.js";
 import Submission from "../modules/submission/submission.model.js";
 import { AppError } from "../utils/AppError.js";
+import { invokeWithUsageTracking } from "../utils/aiUsageTracking.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -194,7 +195,8 @@ export class FormAIService {
   public static async analyzeSingleTag(
     tag: string,
     answers: string[],
-    lang: "ar" | "en" = "en"
+    lang: "ar" | "en" = "en",
+    userId: string = "anonymous"
   ): Promise<TagAnalysisResult> {
     const fallback: TagAnalysisResult = {
       summary: `Failed to analyze "${tag}" due to processing issues or insufficient data.`,
@@ -264,7 +266,7 @@ RULES
       enforceTokenLimit(prompt);
 
       const llm = getLLM();
-      const response = await llm.invoke(prompt);
+      const response = await invokeWithUsageTracking(llm, userId, prompt);
       const raw = response.content.toString().trim();
 
       const parsed = parseJsonResponse<any>(raw);
@@ -298,7 +300,8 @@ RULES
    * GET /api/ai/analyze-form/:formId
    */
   public static async processFormSubmissionAnalysis(
-    formId: string
+    formId: string,
+    userId: string = "anonymous"
   ): Promise<FormAnalysisPayload> {
     // Detect form language
     const questions = await Question.find({ form_id: formId });
@@ -319,7 +322,7 @@ RULES
     const results: Record<string, TagAnalysisResult> = {};
     await Promise.all(
       tags.map(async (tag) => {
-        results[tag] = await this.analyzeSingleTag(tag, grouped[tag], formLanguage);
+        results[tag] = await this.analyzeSingleTag(tag, grouped[tag], formLanguage, userId);
       })
     );
 
@@ -331,7 +334,8 @@ RULES
    * GET /api/ai/analyze-form/:formId/deep
    */
   public static async processFormDeepAnalysis(
-    formId: string
+    formId: string,
+    userId: string = "anonymous"
   ): Promise<FormDeepAnalysisPayload> {
     const fallbackGlobal: GlobalAnalysisResult = {
       overall_summary: "Unable to run deep cross-category analysis at this time.",
@@ -344,7 +348,7 @@ RULES
     const formLanguage = this.detectFormLanguage(questions);
 
     // 1. Run tag-level analysis first
-    const basicAnalysis = await this.processFormSubmissionAnalysis(formId);
+    const basicAnalysis = await this.processFormSubmissionAnalysis(formId, userId);
     const tagsResults = basicAnalysis.tags;
 
     if (Object.keys(tagsResults).length === 0) {
@@ -406,7 +410,7 @@ RULES
 
     try {
       const llm = getLLM();
-      const response = await llm.invoke(globalPrompt);
+      const response = await invokeWithUsageTracking(llm, userId, globalPrompt);
       const raw = response.content.toString().trim();
       const parsed = parseJsonResponse<any>(raw);
       const overall = parsed.overall || {};

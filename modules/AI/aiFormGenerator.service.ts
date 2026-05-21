@@ -1,5 +1,6 @@
 import { ChatOpenAI } from "@langchain/openai";
 import { PromptTemplate } from "@langchain/core/prompts";
+import { invokeWithUsageTracking } from "../../utils/aiUsageTracking.js";
 
 const FORM_GENERATION_PROMPT = PromptTemplate.fromTemplate(`
 You are an expert academic form designer. Your task is to generate an academic form based on the user's prompt.
@@ -51,10 +52,10 @@ function getLLM(): ChatOpenAI {
   return _llm;
 }
 
-export async function generateFormQuestions(prompt: string): Promise<{ title: string; description: string; questions: any[] }> {
+export async function generateFormQuestions(prompt: string, userId: string = "anonymous"): Promise<{ title: string; description: string; questions: any[] }> {
   const llm = getLLM();
   const formattedPrompt = await FORM_GENERATION_PROMPT.format({ prompt });
-  const response = await llm.invoke(formattedPrompt);
+  const response = await invokeWithUsageTracking(llm, userId, formattedPrompt);
 
   const raw = response.content.toString().trim();
   const jsonString = raw

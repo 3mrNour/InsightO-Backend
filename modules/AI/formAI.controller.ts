@@ -17,7 +17,8 @@ export const getFormSubmissionAnalysis = async (
       return next(new AppError("Form ID must be a string", 400));
     }
 
-    const result = await FormAIService.processFormSubmissionAnalysis(formId);
+    const userId = (req as any).user?._id?.toString() || "anonymous";
+    const result = await FormAIService.processFormSubmissionAnalysis(formId, userId);
 
     res.status(200).json({
       status: "success",
@@ -54,7 +55,8 @@ export const getFormDeepAnalysis = async (
       return next(new AppError("Form ID must be a string", 400));
     }
 
-    const result = await FormAIService.processFormDeepAnalysis(formId);
+    const userId = (req as any).user?._id?.toString() || "anonymous";
+    const result = await FormAIService.processFormDeepAnalysis(formId, userId);
 
     res.status(200).json({
       status: "success",

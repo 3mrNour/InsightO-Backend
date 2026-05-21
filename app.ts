@@ -16,6 +16,7 @@ import studentRoutes from "./modules/student/student.route.js";
 import cycleRoutes from "./modules/cycle/cycle.route.js";
 import ingestionroute from "./modules/AI/ingestion.route.js";
 import formGeneratorRoute from "./modules/AI/formGenerator.route.js";
+import aiUsageRoute from "./modules/AI/aiUsage.route.js";
 import formAIRoute from "./modules/AI/formAI.route.js";
 
 
@@ -72,6 +73,7 @@ export function createApp() {
   // AI routes
   app.use("/api/ai", ingestionroute);
   app.use("/api/ai", formGeneratorRoute);
+  app.use("/api/ai-usage", aiUsageRoute);
   app.use("/api/ai", formAIRoute);
 
   // ─── Error Handling ─────────────────────────────────────────────────────────
