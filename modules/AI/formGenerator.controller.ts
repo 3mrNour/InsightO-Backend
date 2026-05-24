@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { generateFormQuestions } from "./aiFormGenerator.service.js";
+import { AppError } from "../../utils/AppError.js";
 
 export const generateAIForm = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -24,6 +25,30 @@ if (!userId) {
       data: questions,
     });
   } catch (error: any) {
+    // Surface token limit errors with structured response
+    if (error instanceof AppError && error.statusCode === 429) {
+      // Try to parse structured limit info from the error message
+      let limitInfo: any = null;
+      try {
+        // Check if the message contains JSON (from tokenUsage.service)
+        const jsonMatch = error.message.match(/Used:\s*(\d+),\s*Limit:\s*(\d+)/);
+        if (jsonMatch) {
+          limitInfo = {
+            used: parseInt(jsonMatch[1]),
+            limit: parseInt(jsonMatch[2]),
+            remaining: 0,
+          };
+        }
+      } catch { /* ignore parse errors */ }
+
+      return res.status(429).json({
+        message: "Token limit exceeded",
+        limit: limitInfo?.limit ?? 0,
+        used: limitInfo?.used ?? 0,
+        remaining: 0,
+      });
+    }
+
     console.error("Form Generator Controller Error:", error);
     return res.status(500).json({
       message: "Failed to generate form",
@@ -31,3 +56,4 @@ if (!userId) {
     });
   }
 };
+

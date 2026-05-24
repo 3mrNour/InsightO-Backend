@@ -181,7 +181,7 @@ REQUIRED OUTPUT FORMAT:
   guardTokens(prompt);
 
   const llm = getLLM();
-  const response = await invokeWithUsageTracking(llm, userId, prompt);
+  const response = await invokeWithUsageTracking(llm, userId, prompt, "grade-submission");
   const raw = response.content.toString().trim();
 
   let parsed: { proposed_grade: number; ai_feedback: string; confidence: number };

@@ -18,6 +18,8 @@ import ingestionroute from "./modules/AI/ingestion.route.js";
 import formGeneratorRoute from "./modules/AI/formGenerator.route.js";
 import aiUsageRoute from "./modules/AI/aiUsage.route.js";
 import formAIRoute from "./modules/AI/formAI.route.js";
+import { getTokenUsage, getAdminTokenUsage } from "./modules/AI/aiUsage.controller.js";
+import { protect, authorizeRoles } from "./middlewares/authMiddleware.js";
 
 
 export function createApp() {
@@ -75,6 +77,12 @@ export function createApp() {
   app.use("/api/ai", formGeneratorRoute);
   app.use("/api/ai-usage", aiUsageRoute);
   app.use("/api/ai", formAIRoute);
+
+  // ─── Token Usage API (frontend-facing) ─────────────────────────────────────
+  app.get("/api/ai/token-usage", protect, authorizeRoles("INSTRUCTOR", "HOD", "ADMIN"), getTokenUsage);
+
+  // ─── Admin Token Usage Dashboard ───────────────────────────────────────────
+  app.get("/api/admin/token-usage", protect, authorizeRoles("ADMIN"), getAdminTokenUsage);
 
   // ─── Error Handling ─────────────────────────────────────────────────────────
   app.use(errorHandler);

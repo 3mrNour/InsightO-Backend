@@ -266,7 +266,7 @@ RULES
       enforceTokenLimit(prompt);
 
       const llm = getLLM();
-      const response = await invokeWithUsageTracking(llm, userId, prompt);
+      const response = await invokeWithUsageTracking(llm, userId, prompt, "analyze-form");
       const raw = response.content.toString().trim();
 
       const parsed = parseJsonResponse<any>(raw);
@@ -410,7 +410,7 @@ RULES
 
     try {
       const llm = getLLM();
-      const response = await invokeWithUsageTracking(llm, userId, globalPrompt);
+      const response = await invokeWithUsageTracking(llm, userId, globalPrompt, "analyze-form-deep");
       const raw = response.content.toString().trim();
       const parsed = parseJsonResponse<any>(raw);
       const overall = parsed.overall || {};

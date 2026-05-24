@@ -55,7 +55,7 @@ function getLLM(): ChatOpenAI {
 export async function generateFormQuestions(prompt: string, userId: string = "anonymous"): Promise<{ title: string; description: string; questions: any[] }> {
   const llm = getLLM();
   const formattedPrompt = await FORM_GENERATION_PROMPT.format({ prompt });
-  const response = await invokeWithUsageTracking(llm, userId, formattedPrompt);
+  const response = await invokeWithUsageTracking(llm, userId, formattedPrompt, "generate-form");
 
   const raw = response.content.toString().trim();
   const jsonString = raw

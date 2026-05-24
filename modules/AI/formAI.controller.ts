@@ -27,11 +27,20 @@ export const getFormSubmissionAnalysis = async (
   } catch (error: any) {
     // Surface token limit errors with structured response
     if (error instanceof AppError && error.statusCode === 429) {
+      let limitInfo: any = null;
+      try {
+        const jsonMatch = error.message.match(/Used:\s*(\d+),\s*Limit:\s*(\d+)/);
+        if (jsonMatch) {
+          limitInfo = { used: parseInt(jsonMatch[1]), limit: parseInt(jsonMatch[2]) };
+        }
+      } catch { /* ignore */ }
+
       res.status(429).json({
         status: "error",
-        error: "Token limit exceeded",
-        limit: 80000,
-        message: error.message,
+        message: "Token limit exceeded",
+        limit: limitInfo?.limit ?? 80000,
+        used: limitInfo?.used ?? 0,
+        remaining: 0,
       });
       return;
     }
@@ -65,11 +74,20 @@ export const getFormDeepAnalysis = async (
   } catch (error: any) {
     // Surface token limit errors with structured response
     if (error instanceof AppError && error.statusCode === 429) {
+      let limitInfo: any = null;
+      try {
+        const jsonMatch = error.message.match(/Used:\s*(\d+),\s*Limit:\s*(\d+)/);
+        if (jsonMatch) {
+          limitInfo = { used: parseInt(jsonMatch[1]), limit: parseInt(jsonMatch[2]) };
+        }
+      } catch { /* ignore */ }
+
       res.status(429).json({
         status: "error",
-        error: "Token limit exceeded",
-        limit: 80000,
-        message: error.message,
+        message: "Token limit exceeded",
+        limit: limitInfo?.limit ?? 80000,
+        used: limitInfo?.used ?? 0,
+        remaining: 0,
       });
       return;
     }
