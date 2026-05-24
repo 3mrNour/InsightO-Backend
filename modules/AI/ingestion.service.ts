@@ -5,33 +5,52 @@ import { OpenAIEmbeddings } from "@langchain/openai";
 import { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
 import mongoose from "mongoose";
 import { Chunk } from "./chunk.model.js";
-
+import fs from "fs/promises";
+import path from "path";
 export class IngestionService {
   /**
-   * Processes a PDF file or raw text, splits it into chunks, and stores embeddings in MongoDB.
-   * @param file Express.Multer.File (optional)
-   * @param text string (optional)
-   * @param taskId string (optional)
+   * Processes a PDF file, raw text, or URL, splits it into chunks, and stores embeddings in MongoDB.
+   * @param payload Object containing file, text, url, and metadata
    * @returns The number of chunks processed and stored.
    */
-  public static async processAndStore(file?: Express.Multer.File, text?: string, taskId?: string): Promise<number> {
+  public static async processAndStore(payload: {
+    file?: Express.Multer.File;
+    text?: string;
+    url?: string;
+    metadata?: Record<string, any>;
+  }): Promise<number> {
+    const { file, text, url, metadata } = payload;
     let docs: Document[] = [];
 
     if (!process.env.OPENAI_API_KEY) {
       throw new Error("OPENAI_API_KEY is not defined.");
     }
 
-    // 1. Extract from PDF or 2. Wrap text into Document
+    // 1. Extract from PDF, fetch URL, or Wrap text into Document
     if (file) {
       if (!file.path) {
         throw new Error("File path is undefined. Make sure multer is saving to disk.");
       }
       const loader = new PDFLoader(file.path);
       docs = await loader.load();
+    } else if (url) {
+      let fetchedText = "";
+      if (url.startsWith("/uploads") || url.startsWith("uploads/")) {
+        const normalizedPath = url.startsWith("/") ? url.slice(1) : url;
+        const localPath = path.join(process.cwd(), normalizedPath);
+        fetchedText = await fs.readFile(localPath, "utf8");
+      } else {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch URL: ${url}. Status: ${response.status}`);
+        }
+        fetchedText = await response.text();
+      }
+      docs = [new Document({ pageContent: fetchedText })];
     } else if (text) {
       docs = [new Document({ pageContent: text })];
     } else {
-      throw new Error("Either a PDF file or raw text must be provided.");
+      throw new Error("A PDF file, raw text, or a URL must be provided.");
     }
 
     // 3. Split using RecursiveCharacterTextSplitter
@@ -41,9 +60,9 @@ export class IngestionService {
     });
     const splitDocs = await textSplitter.splitDocuments(docs);
 
-    if (taskId) {
+    if (metadata) {
       for (const doc of splitDocs) {
-        doc.metadata = { ...doc.metadata, taskId };
+        doc.metadata = { ...doc.metadata, ...metadata };
       }
     }
 
@@ -61,7 +80,7 @@ export class IngestionService {
         apiKey: process.env.OPENAI_API_KEY,
       }),
       {
-        collection,
+        collection: collection as any,
         indexName: "vector_index", // Replace with your Atlas Vector Search Index name if different
         textKey: "text",
         embeddingKey: "embedding",

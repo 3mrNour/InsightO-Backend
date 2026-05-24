@@ -51,7 +51,10 @@ if (courseId) {
   // 🧠 Ingest Rubric File into Chunks for AI Grading
   if (req.file) {
     try {
-      await IngestionService.processAndStore(req.file, undefined, newTask._id.toString());
+      await IngestionService.processAndStore({
+        file: req.file,
+        metadata: { taskId: newTask._id.toString() }
+      });
       console.log(`Task ${newTask._id}: Rubric file ingested into chunks successfully.`);
     } catch (err) {
       console.error("Error ingesting rubric file:", err);
