@@ -4,7 +4,7 @@ import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
 import mongoose from "mongoose";
-import { Chunk } from "./chunk.model.js";
+// import { Chunk } from "./chunk.model.js";
 import fs from "fs/promises";
 import path from "path";
 export class IngestionService {
