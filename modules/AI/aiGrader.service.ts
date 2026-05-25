@@ -111,50 +111,50 @@ function parseJsonResponse<T>(raw: string): T {
 
 // ── MCQ Deterministic Grader ──────────────────────────────────────────────────
 
-function gradeMCQ(content: string, correctAnswer: string): GradeResult {
-  const isCorrect =
-    content.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
-  return {
-    proposed_grade: isCorrect ? 100 : 0,
-    ai_feedback: isCorrect
-      ? "Correct answer selected."
-      : `Incorrect. The correct answer is: "${correctAnswer}".`,
-    confidence: 1.0,
-    grade_method: "deterministic",
-  };
-}
+// function gradeMCQ(content: string, correctAnswer: string): GradeResult {
+//   const isCorrect =
+//     content.trim().toLowerCase() === correctAnswer.trim().toLowerCase();
+//   return {
+//     proposed_grade: isCorrect ? 100 : 0,
+//     ai_feedback: isCorrect
+//       ? "Correct answer selected."
+//       : `Incorrect. The correct answer is: "${correctAnswer}".`,
+//     confidence: 1.0,
+//     grade_method: "deterministic",
+//   };
+// }
 
 // ── MSQ Partial Scorer ────────────────────────────────────────────────────────
 
-function gradeMSQ(
-  selectedAnswers: string[],
-  correctAnswers: string[]
-): GradeResult {
-  if (!correctAnswers.length) {
-    return {
-      proposed_grade: 0,
-      ai_feedback: "No correct answers defined for this MSQ question.",
-      confidence: 1.0,
-      grade_method: "partial_scoring",
-    };
-  }
+// function gradeMSQ(
+//   selectedAnswers: string[],
+//   correctAnswers: string[]
+// ): GradeResult {
+//   if (!correctAnswers.length) {
+//     return {
+//       proposed_grade: 0,
+//       ai_feedback: "No correct answers defined for this MSQ question.",
+//       confidence: 1.0,
+//       grade_method: "partial_scoring",
+//     };
+//   }
 
-  const normalizedCorrect = correctAnswers.map((a) => a.trim().toLowerCase());
-  const normalizedSelected = selectedAnswers.map((a) => a.trim().toLowerCase());
+//   const normalizedCorrect = correctAnswers.map((a) => a.trim().toLowerCase());
+//   const normalizedSelected = selectedAnswers.map((a) => a.trim().toLowerCase());
 
-  const correctlySelected = normalizedSelected.filter((s) =>
-    normalizedCorrect.includes(s)
-  ).length;
+//   const correctlySelected = normalizedSelected.filter((s) =>
+//     normalizedCorrect.includes(s)
+//   ).length;
 
-  const grade = Math.round((correctlySelected / correctAnswers.length) * 100);
+//   const grade = Math.round((correctlySelected / correctAnswers.length) * 100);
 
-  return {
-    proposed_grade: Math.min(100, Math.max(0, grade)),
-    ai_feedback: `Selected ${correctlySelected} of ${correctAnswers.length} correct answers. Score: ${grade}%.`,
-    confidence: 1.0,
-    grade_method: "partial_scoring",
-  };
-}
+//   return {
+//     proposed_grade: Math.min(100, Math.max(0, grade)),
+//     ai_feedback: `Selected ${correctlySelected} of ${correctAnswers.length} correct answers. Score: ${grade}%.`,
+//     confidence: 1.0,
+//     grade_method: "partial_scoring",
+//   };
+// }
 
 // ── LLM Reasoning Grader (TEXT / FILE) ───────────────────────────────────────
 
@@ -249,29 +249,29 @@ REQUIRED JSON OUTPUT FORMAT:
  * No vector search. No side effects. Returns clean JSON.
  * Throws on failure — callers should wrap in try/catch.
  */
-export async function gradeSubmission(input: GradeInput): Promise<GradeResult> {
-  const { content, rubric, type = "text", correctAnswer, correctAnswers, selectedAnswers, userId = "anonymous" } = input;
+// export async function gradeSubmission(input: GradeInput): Promise<GradeResult> {
+//   const { content, rubric, type = "text", correctAnswer, correctAnswers, selectedAnswers, userId = "anonymous" } = input;
 
-  switch (type) {
-    case "mcq": {
-      if (!correctAnswer) {
-        throw new AppError("MCQ grading requires 'correctAnswer'.", 400);
-      }
-      return gradeMCQ(content, correctAnswer);
-    }
+//   switch (type) {
+//     case "mcq": {
+//       if (!correctAnswer) {
+//         throw new AppError("MCQ grading requires 'correctAnswer'.", 400);
+//       }
+//       return gradeMCQ(content, correctAnswer);
+//     }
 
-    case "msq": {
-      if (!correctAnswers || !correctAnswers.length) {
-        throw new AppError("MSQ grading requires 'correctAnswers'.", 400);
-      }
-      return gradeMSQ(selectedAnswers ?? [], correctAnswers);
-    }
+//     case "msq": {
+//       if (!correctAnswers || !correctAnswers.length) {
+//         throw new AppError("MSQ grading requires 'correctAnswers'.", 400);
+//       }
+//       return gradeMSQ(selectedAnswers ?? [], correctAnswers);
+//     }
 
-    case "file":
-    case "text":
-    default: {
-      // For FILE type, caller must have already extracted text into `content`
-      return gradeLLM(content, rubric, userId);
-    }
-  }
-}
+//     case "file":
+//     case "text":
+//     default: {
+//       // For FILE type, caller must have already extracted text into `content`
+//       return gradeLLM(content, rubric, userId);
+//     }
+//   }
+// }
