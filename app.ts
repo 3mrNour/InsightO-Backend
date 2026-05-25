@@ -18,8 +18,12 @@ import ingestionroute from "./modules/AI/ingestion.route.js";
 import formGeneratorRoute from "./modules/AI/formGenerator.route.js";
 import aiUsageRoute from "./modules/AI/aiUsage.route.js";
 import formAIRoute from "./modules/AI/formAI.route.js";
+
 import { getTokenUsage, getAdminTokenUsage } from "./modules/AI/aiUsage.controller.js";
 import { protect, authorizeRoles } from "./middlewares/authMiddleware.js";
+
+
+import path from 'path';
 
 
 export function createApp() {
@@ -56,7 +60,7 @@ export function createApp() {
 
   // File Upload routes (POST /api/upload)
   app.use("/api/upload", uploadRoutes);
-
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
   // Task routes
   app.use("/api/tasks", taskRoutes);
 

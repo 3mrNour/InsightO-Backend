@@ -7,7 +7,8 @@ import { AppError } from "../../utils/AppError.js";
 import { asyncWrap } from "../../middlewares/asyncWrap.js";
 import { gradeSubmission } from "../AI/aiGrader.service.js";
 import { Chunk } from "../AI/chunk.model.js";
-
+import mongoose from "mongoose";
+import { IngestionService } from "../AI/ingestion.service.js";
 export const submitTask = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
   const { content, attachments, form_answers } = req.body;
   const taskId = req.params.taskId;
@@ -43,44 +44,110 @@ export const submitTask = asyncWrap(async (req: Request, res: Response, next: Ne
     form_answers,
   });
 
-  // ─── AI Grading Hook (non-blocking) ────────────────────────────────────────
-  // Runs AFTER the response is sent. Any failure is caught silently so it
-  // never impacts the student's submission experience.
+  // ─── AI Grading Hook (Vectorized Chunks Integration) ──────────────────────────
   setImmediate(async () => {
     try {
-      // Only grade if the submission has content
-      if (!content) return;
-
+      let textToGrade = content || "";
       let rubricToUse = task.ai_grading_rubric || "";
 
-      // Try fetching chunks from MongoDB if rubric file was ingested
-      const chunks = await Chunk.find({ "metadata.taskId": taskId.toString() });
-      if (chunks && chunks.length > 0) {
-        const chunkText = chunks.map(c => c.text).join("\n\n");
-        rubricToUse = rubricToUse ? `${rubricToUse}\n\n${chunkText}` : chunkText;
+      // 0. Processing Attachments via IngestionService
+      if (attachments && attachments.length > 0) {
+        for (const attachment of attachments) {
+          if (attachment.url) {
+            try {
+              await IngestionService.processAndStore({
+                url: attachment.url,
+                metadata: {
+                  taskId: taskId.toString(),
+                  submissionId: submission._id.toString(),
+                  source: "student_attachment",
+                  fileName: attachment.fileName
+                }
+              });
+              console.log(`[aiGrader] Successfully ingested attachment: ${attachment.fileName || attachment.url}`);
+            } catch (err: any) {
+              console.error(`[aiGrader] Failed to ingest attachment ${attachment.url}:`, err?.message ?? err);
+            }
+          }
+        }
       }
 
-      // Ensure we have a rubric to evaluate against
-      if (!rubricToUse) return;
+      // 1. السحر كله هنا: سحب الـ Chunks الجاهزة من الداتابيز!
+      // بنجيب الـ Chunks الخاصة بالتاسك أو بالتسليم ده مباشرة
+      const chunks = await Chunk.find({
+        $or: [
+          { taskId: taskId.toString() },
+          { submissionId: submission._id.toString() } // لو إنت رابط الـ Chunks برقم التسليم
+        ]
+      });
 
+      let chunkText = "";
+      if (chunks && chunks.length > 0) {
+        chunkText = chunks.map(c => c.text).join("\n\n");
+      }
+
+      // 2. لو الطالب رافع ملف (Attachments).. هنخلي الـ AI يقرأ الـ Chunks مباشرة! (ولا كأن فيه URL)
+      if (!textToGrade.trim() && attachments && attachments.length > 0) {
+        textToGrade = chunkText ? `[VECTORIZED CHUNKS CONTENT]:\n${chunkText}` : "// No chunks processed yet.";
+        chunkText = ""; // بنفضيها عشان متبقاش متكررة في الـ Rubric تحت
+      }
+      // 3. لو مش فايل، بنضيف الـ Chunks كـ Context عادي للـ Rubric
+      else if (chunkText) {
+        rubricToUse = rubricToUse ? `${rubricToUse}\n\n[CONTEXT PROVIDED]:\n${chunkText}` : chunkText;
+      }
+
+      // 4. تجميع إجابات الكويز (لو موجودة)
+      if (form_answers && Array.isArray(form_answers) && form_answers.length > 0) {
+        const form = await mongoose.model('Form').findById(task.form_id).populate('questions');
+        const formattedAnswers = form_answers.map((ans: any, idx: number) => {
+          let qLabel = `Question ${idx + 1}`;
+          if (form && form.questions) {
+            const matchedQ = form.questions.find((q: any) => String(q._id) === String(ans.question_id));
+            if (matchedQ) qLabel = matchedQ.label;
+          }
+          const val = Array.isArray(ans.value) ? ans.value.join(', ') : String(ans.value);
+          return `Question: ${qLabel}\nAnswer: ${val}`;
+        }).join("\n\n---\n\n");
+
+        textToGrade = textToGrade ? `${textToGrade}\n\n[QUIZ RESPONSES]\n${formattedAnswers}` : formattedAnswers;
+      }
+
+      // لو مفيش أي داتا أو Chunks اخرج
+      if (!textToGrade.trim() || textToGrade === "// No chunks processed yet.") {
+        console.log(`[aiGrader] Submission ${submission._id} lacks chunks or content. Skipping.`);
+        return;
+      }
+
+      // 5. استدعاء الـ AI (دلوقتي الـ content جواه الـ Chunks اللي فيها كود الـ JS!)
       const result = await gradeSubmission({
-        content,
+        content: textToGrade,
         rubric: rubricToUse,
+        type: task.task_type === 'QUIZ' ? 'text' : 'file',
         userId: task.creator_id.toString(),
       });
 
-      await TaskSubmission.findByIdAndUpdate(submission._id, {
-        ai_evaluation: {
-          suggested_grade: result.proposed_grade,
-          feedback: result.ai_feedback,
-          confidence_score: result.confidence,
+      // 🎯 التحديث الشامل (مع حل مشكلة Mongoose Warning)
+      await TaskSubmission.findByIdAndUpdate(
+        submission._id,
+        {
+          ai_evaluation: {
+            suggested_grade: result.proposed_grade,
+            feedback: result.feedback,
+            confidence_score: result.confidence,
+            weaknesses: result.weaknesses || [],
+            recommendations: result.recommendations || [],
+            criteria_breakdown: result.criteria_breakdown || [],
+            concept_mastery: result.concept_mastery || [],
+            quality_metrics: result.quality_metrics || { readability: 0, complexity_score: 0, security_guardrails: 0 }
+          },
+          status: "AI_GRADED",
         },
-        status: "AI_GRADED",
-      });
+        // 👇 التحذير المزعج بتاع Mongoose اختفى بسبب دي
+        { strict: false, returnDocument: 'after' }
+      );
 
-      console.log(`[aiGrader] Graded submission ${submission._id} — grade: ${result.proposed_grade}`);
+      console.log(`[aiGrader] Successfully saved full rich metrics for submission ${submission._id}`);
     } catch (err: any) {
-      // Silent failure: AI errors must never surface to the student
       console.error(`[aiGrader] Failed to grade submission ${submission._id}:`, err?.message ?? err);
     }
   });

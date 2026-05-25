@@ -9,6 +9,7 @@ import { ChatOpenAI } from "@langchain/openai";
 import { estimateTokens } from "../../services/formAI.service.js";
 import { AppError } from "../../utils/AppError.js";
 import { invokeWithUsageTracking } from "../../utils/aiUsageTracking.js";
+import { raw } from "express";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -34,13 +35,29 @@ export interface GradeInput {
   selectedAnswers?: string[];
   /** User ID for tracking token usage */
   userId?: string;
+
+  // 👈 ضيف الحقلين دول هنا حالاً عشان الـ TS يهدأ:
+  attachments?: {
+    url: string;
+    fileName?: string;
+    size?: number;
+  }[];
+  form_answers?: {
+    question_id: any;
+    value: any;
+  }[];
 }
 
 export interface GradeResult {
-  proposed_grade: number; // 0 – 100
-  ai_feedback: string;
-  confidence: number;     // 0 – 1
-  grade_method: string;   // "deterministic" | "partial_scoring" | "llm_reasoning"
+  proposed_grade: number;
+  feedback: string;
+  confidence: number;
+  grade_method: string;
+  weaknesses?: string[];
+  recommendations?: string[];
+  criteria_breakdown?: any[];
+  concept_mastery?: any[];
+  quality_metrics?: any;
 }
 
 // ── LLM Singleton ────────────────────────────────────────────────────────────
@@ -55,7 +72,7 @@ function getLLM(): ChatOpenAI {
       modelName: "gpt-4o-mini",
       temperature: 0,
       openAIApiKey: apiKey,
-      maxTokens: 512,
+      maxTokens: 2048,
     });
   }
   return _llm;
@@ -146,36 +163,48 @@ async function gradeLLM(
   rubric?: string,
   userId: string = "anonymous"
 ): Promise<GradeResult> {
-  // Truncate content to prevent token overflow
   const safeContent = content.slice(0, MAX_CONTENT_CHARS);
-
   const hasRubric = rubric && rubric.trim().length > 0;
 
   const rubricSection = hasRubric
-    ? `GRADING RUBRIC (strict grading — evaluate ONLY against these criteria):
-${rubric}`
-    : `GRADING RUBRIC: None provided.
-INSTRUCTION: You MUST evaluate even if a rubric is missing. Infer evaluation criteria from the submission content. Assess quality, clarity, depth, correctness, and coherence.`;
+    ? `GRADING RUBRIC (Evaluate strictly against these criteria):\n${rubric}`
+    : `GRADING RUBRIC: None provided. Assess logic, correctness, quality, and coherence.`;
 
-  const prompt = `You are an expert academic grader. Your task is to evaluate a student's submission.
+  const prompt = `You are a Principal Academic Evaluator and Senior Software Architect. Your task is to perform a deep cognitive analysis of the student's submission.
 
 ${rubricSection}
 
-STUDENT SUBMISSION:
+STUDENT SUBMISSION / ANSWERS:
 ${safeContent}
 
 INSTRUCTIONS:
-- Be objective, consistent, and professional.
-- Assign a grade between 0 and 100.
-- Set confidence between 0.0 (very uncertain) and 1.0 (highly certain).
-- Provide constructive, specific feedback referencing the submission.
-- Respond ONLY with valid JSON — no markdown, no explanation outside JSON.
+1. Provide a suggested grade (0-100) and confidence score (0.0-1.0).
+2. Provide constructive general feedback.
+3. Identify 1-3 specific weaknesses.
+4. Provide actionable recommendations.
+5. Generate a 'criteria_breakdown' identifying dimensions of the submission (e.g., Logic, Optimization). For each, give a score out of a max value, and a brief comment.
+6. Map 'concept_mastery' extracting key academic concepts discussed. Assign a mastery_level (0.0-1.0) and status ("EXCELLENT", "GOOD", or "CRITICAL").
+7. Generate 'quality_metrics' estimating readability (0-100), complexity (0-100), and security guardrails (0-100).
+8. YOU MUST RESPOND ONLY WITH VALID JSON. Do not include markdown tags (\`\`\`json).
 
-REQUIRED OUTPUT FORMAT:
+REQUIRED JSON OUTPUT FORMAT:
 {
-  "proposed_grade": <number 0-100>,
-  "ai_feedback": "<constructive feedback string>",
-  "confidence": <number 0.0-1.0>
+  "suggested_grade": <number>,
+  "confidence_score": <number>,
+  "feedback": "<string>",
+  "weaknesses": ["<string>"],
+  "recommendations": ["<string>"],
+  "criteria_breakdown": [
+    { "criterion": "<string>", "score": <number>, "max": <number>, "comments": "<string>" }
+  ],
+  "concept_mastery": [
+    { "concept": "<string>", "mastery_level": <number>, "status": "EXCELLENT" | "GOOD" | "CRITICAL" }
+  ],
+  "quality_metrics": {
+    "readability": <number>,
+    "complexity_score": <number>,
+    "security_guardrails": <number>
+  }
 }`;
 
   guardTokens(prompt);
@@ -183,8 +212,9 @@ REQUIRED OUTPUT FORMAT:
   const llm = getLLM();
   const response = await invokeWithUsageTracking(llm, userId, prompt, "grade-submission");
   const raw = response.content.toString().trim();
+  console.log("[aiGrader] LLM response:", raw);
 
-  let parsed: { proposed_grade: number; ai_feedback: string; confidence: number };
+  let parsed: any;
   try {
     parsed = parseJsonResponse(raw);
   } catch {
@@ -193,9 +223,14 @@ REQUIRED OUTPUT FORMAT:
   }
 
   return {
-    proposed_grade: Math.min(100, Math.max(0, Number(parsed.proposed_grade) || 0)),
-    ai_feedback: parsed.ai_feedback || "No feedback provided.",
-    confidence: Math.min(1, Math.max(0, Number(parsed.confidence) || 0)),
+    proposed_grade: Math.min(100, Math.max(0, Number(parsed.suggested_grade || parsed.proposed_grade) || 0)),
+    feedback: parsed.feedback || parsed.ai_feedback || "No feedback provided.",
+    confidence: Math.min(1, Math.max(0, Number(parsed.confidence_score || parsed.confidence) || 0)),
+    weaknesses: parsed.weaknesses || [],
+    recommendations: parsed.recommendations || [],
+    criteria_breakdown: parsed.criteria_breakdown || [],
+    concept_mastery: parsed.concept_mastery || [],
+    quality_metrics: parsed.quality_metrics || { readability: 0, complexity_score: 0, security_guardrails: 0 },
     grade_method: "llm_reasoning",
   };
 }

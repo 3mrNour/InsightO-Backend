@@ -14,7 +14,7 @@ export const ingestRubric = async (req: Request, res: Response): Promise<Respons
     }
 
     // Call service to handle ingestion logic
-    const chunkCount = await IngestionService.processAndStore(file, text);
+    const chunkCount = await IngestionService.processAndStore({ file, text });
 
     return res.status(200).json({
       message: 'Ingestion successful',
