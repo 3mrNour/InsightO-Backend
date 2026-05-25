@@ -18,10 +18,11 @@ export const getMyUsage = async (req: Request, res: Response, next: NextFunction
     res.status(200).json({
       status: "success",
       data: {
-        used: usage.used,
-        limit: usage.limit,
-        remaining: usage.remaining,
+        totalTokensUsed: usage.used,
+        maxTokens: usage.limit,
+        remainingTokens: usage.remaining,
         percentageUsed: usage.percentageUsed,
+        requestCount: user.ai_request_count || 0,
       },
     });
   } catch (error) {
@@ -34,9 +35,21 @@ export const getMyUsage = async (req: Request, res: Response, next: NextFunction
 export const getAllUsersUsageAdmin = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const usage = await getAdminAggregatedUsage();
+    
+    // Map to frontend expected format
+    const formattedUsage = usage.map((u: any) => ({
+      userId: u.userId,
+      name: u.name,
+      email: u.email,
+      totalTokensUsed: u.totalTokens,
+      maxTokens: u.limit,
+      percentageUsed: u.percentageUsed,
+      requestCount: u.requestCount,
+    }));
+
     res.status(200).json({
       status: "success",
-      data: usage,
+      data: formattedUsage,
     });
   } catch (error) {
     next(error);
@@ -56,9 +69,9 @@ export const getTokenUsage = async (req: Request, res: Response, next: NextFunct
     const usage = await getMyTokenUsage(userId, user.role, user.ai_tokens_limit);
 
     res.status(200).json({
-      used: usage.used,
-      limit: usage.limit,
-      remaining: usage.remaining,
+      totalTokensUsed: usage.used,
+      maxTokens: usage.limit,
+      remainingTokens: usage.remaining,
     });
   } catch (error) {
     next(error);
@@ -70,9 +83,21 @@ export const getTokenUsage = async (req: Request, res: Response, next: NextFunct
 export const getAdminTokenUsage = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const usage = await getAdminAggregatedUsage();
+    
+    // Map to frontend expected format
+    const formattedUsage = usage.map((u: any) => ({
+      userId: u.userId,
+      name: u.name,
+      email: u.email,
+      totalTokensUsed: u.totalTokens,
+      maxTokens: u.limit,
+      percentageUsed: u.percentageUsed,
+      requestCount: u.requestCount,
+    }));
+
     res.status(200).json({
       status: "success",
-      data: usage,
+      data: formattedUsage,
     });
   } catch (error) {
     next(error);

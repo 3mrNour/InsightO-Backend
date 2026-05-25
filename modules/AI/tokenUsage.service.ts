@@ -160,59 +160,51 @@ export async function getMyTokenUsage(userId: string, userRole: string, userLimi
 export async function getAdminAggregatedUsage() {
   const pipeline = [
     {
-      $group: {
-        _id: "$userId",
-        role: { $first: "$role" },
-        totalInputTokens: { $sum: "$inputTokens" },
-        totalOutputTokens: { $sum: "$outputTokens" },
-        totalTokens: { $sum: "$totalTokens" },
-        requestCount: { $sum: 1 },
-        lastRequest: { $max: "$createdAt" },
+      $match: {
+        role: { $in: ["INSTRUCTOR", "HOD", "ADMIN"] },
       },
     },
     {
       $lookup: {
-        from: "users",
+        from: "tokenusages",
         localField: "_id",
-        foreignField: "_id",
-        as: "userInfo",
+        foreignField: "userId",
+        as: "usages",
       },
     },
-    { $unwind: { path: "$userInfo", preserveNullAndEmptyArrays: true } },
     {
       $project: {
         _id: 0,
         userId: "$_id",
         name: {
           $concat: [
-            { $ifNull: ["$userInfo.firstName", ""] },
+            { $ifNull: ["$firstName", ""] },
             " ",
-            { $ifNull: ["$userInfo.lastName", ""] },
+            { $ifNull: ["$lastName", ""] },
           ],
         },
-        email: { $ifNull: ["$userInfo.email", "unknown"] },
+        email: { $ifNull: ["$email", "unknown"] },
         role: 1,
-        totalInputTokens: 1,
-        totalOutputTokens: 1,
-        totalTokens: 1,
-        requestCount: 1,
-        lastRequest: 1,
-        limit: {
-          $ifNull: [
-            "$userInfo.ai_tokens_limit",
-            DEFAULT_LIMIT,
-          ],
-        },
+        totalInputTokens: { $sum: "$usages.inputTokens" },
+        totalOutputTokens: { $sum: "$usages.outputTokens" },
+        totalTokens: { $sum: "$usages.totalTokens" },
+        requestCount: { $size: "$usages" },
+        lastRequest: { $max: "$usages.createdAt" },
+        ai_tokens_limit: 1,
       },
     },
     { $sort: { totalTokens: -1 as const } },
   ];
 
-  const results = await TokenUsage.aggregate(pipeline);
+  const results = await User.aggregate(pipeline);
 
-  return results.map((r: any) => ({
-    ...r,
-    remaining: Math.max(0, r.limit - r.totalTokens),
-    percentageUsed: Math.min(100, (r.totalTokens / r.limit) * 100),
-  }));
+  return results.map((r: any) => {
+    const limit = r.ai_tokens_limit || ROLE_LIMITS[r.role] || DEFAULT_LIMIT;
+    return {
+      ...r,
+      limit,
+      remaining: Math.max(0, limit - r.totalTokens),
+      percentageUsed: Math.min(100, (r.totalTokens / limit) * 100),
+    };
+  });
 }

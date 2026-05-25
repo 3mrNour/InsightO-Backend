@@ -249,29 +249,29 @@ REQUIRED JSON OUTPUT FORMAT:
  * No vector search. No side effects. Returns clean JSON.
  * Throws on failure — callers should wrap in try/catch.
  */
-// export async function gradeSubmission(input: GradeInput): Promise<GradeResult> {
-//   const { content, rubric, type = "text", correctAnswer, correctAnswers, selectedAnswers, userId = "anonymous" } = input;
+ export async function gradeSubmission(input: GradeInput): Promise<GradeResult> {
+   const { content, rubric, type = "text", correctAnswer, correctAnswers, selectedAnswers, userId = "anonymous" } = input;
 
-//   switch (type) {
-//     case "mcq": {
-//       if (!correctAnswer) {
-//         throw new AppError("MCQ grading requires 'correctAnswer'.", 400);
-//       }
-//       return gradeMCQ(content, correctAnswer);
-//     }
+   switch (type) {
+     case "mcq": {
+       if (!correctAnswer) {
+         throw new AppError("MCQ grading requires 'correctAnswer'.", 400);
+      }
+       return gradeMCQ(content, correctAnswer);
+     }
 
-//     case "msq": {
-//       if (!correctAnswers || !correctAnswers.length) {
-//         throw new AppError("MSQ grading requires 'correctAnswers'.", 400);
-//       }
-//       return gradeMSQ(selectedAnswers ?? [], correctAnswers);
-//     }
+     case "msq": {
+       if (!correctAnswers || !correctAnswers.length) {
+         throw new AppError("MSQ grading requires 'correctAnswers'.", 400);
+       }
+       return gradeMSQ(selectedAnswers ?? [], correctAnswers);
+    }
 
-//     case "file":
-//     case "text":
-//     default: {
-//       // For FILE type, caller must have already extracted text into `content`
-//       return gradeLLM(content, rubric, userId);
-//     }
-//   }
-// }
+     case "file":
+     case "text":
+     default: {
+       // For FILE type, caller must have already extracted text into `content`
+     return gradeLLM(content, rubric, userId);
+    }
+  }
+ }

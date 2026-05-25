@@ -9,7 +9,7 @@ import {
 } from "../modules/AI/tokenUsage.service.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const DEFAULT_TOKEN_LIMIT = 90_000;
+const DEFAULT_TOKEN_LIMIT = 50_000;
 const WARNING_THRESHOLD = 0.8; // 80%
 
 // ─── Token Estimation ─────────────────────────────────────────────────────────

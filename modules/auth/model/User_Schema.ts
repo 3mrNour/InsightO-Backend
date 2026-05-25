@@ -24,7 +24,7 @@ const user_Schema = new mongoose.Schema({
 
   // ─── AI Token Usage Tracking ──────────────────────────────────────
   ai_tokens_used:  { type: Number, default: 0 },
-  ai_tokens_limit: { type: Number, default: 90_000 },
+  ai_tokens_limit: { type: Number },
   ai_request_count: { type: Number, default: 0 },
   ai_last_request_at: { type: Date, default: null },
 
