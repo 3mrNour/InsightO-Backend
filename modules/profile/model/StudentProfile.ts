@@ -5,6 +5,9 @@ export interface IStudentProfile extends Document {
   academicYear: number;
   departmentId: Types.ObjectId;
   enrolledCourses: Types.ObjectId[];
+  ai_synthesis?: any;
+  ai_synthesis_task_count?: number;
+  ai_synthesis_updated_at?: Date;
 }
 
 const studentProfileSchema = new Schema<IStudentProfile>(
@@ -30,6 +33,9 @@ const studentProfileSchema = new Schema<IStudentProfile>(
         ref: "Course",
       },
     ],
+    ai_synthesis: { type: Schema.Types.Mixed, default: null },
+    ai_synthesis_task_count: { type: Number, default: 0 },
+    ai_synthesis_updated_at: { type: Date, default: null },
   },
   { timestamps: true },
 );

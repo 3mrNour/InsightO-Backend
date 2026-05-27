@@ -268,9 +268,39 @@ export const createAdminUser = asyncWrap(async (req: Request, res: Response, nex
   });
 });
 
-export const listAdminUsers = async (_req: Request, res: Response, next: NextFunction): Promise<void> => {
+export const listAdminUsers = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const users = (await User.find().select('-password -otp -otpExpires').lean()) as IUserLean[];
+    const userRole = (req as any).user.role;
+    const userId = (req as any).user._id;
+
+    let usersQuery: any = {};
+
+    if (userRole === 'INSTRUCTOR') {
+      const instructorProfile = await InstructorProfile.findOne({ userId });
+      if (!instructorProfile) return next(new AppError('Instructor profile not found', 404));
+      
+      const instructorCourses = instructorProfile.teachingCourses;
+      const studentsInCourses = await StudentProfile.find({
+        enrolledCourses: { $in: instructorCourses }
+      }).select('userId');
+      
+      const studentUserIds = studentsInCourses.map(sp => sp.userId);
+      usersQuery = { _id: { $in: studentUserIds } };
+    } else if (userRole === 'HOD') {
+      const hodProfile = await HODProfile.findOne({ userId });
+      if (!hodProfile) return next(new AppError('HOD profile not found', 404));
+
+      const studentProfiles = await StudentProfile.find({ departmentId: hodProfile.departmentId }).select('userId');
+      const instructorProfiles = await InstructorProfile.find({ departmentId: hodProfile.departmentId }).select('userId');
+      
+      const userIds = [
+        ...studentProfiles.map(p => p.userId),
+        ...instructorProfiles.map(p => p.userId)
+      ];
+      usersQuery = { _id: { $in: userIds } };
+    }
+
+    const users = (await User.find(usersQuery).select('-password -otp -otpExpires').lean()) as IUserLean[];
     const payload = await Promise.all(users.map((user) => mapUserWithProfile(user)));
     res.status(200).json({ status: 'success', data: payload });
   } catch (error) {

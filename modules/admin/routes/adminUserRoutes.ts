@@ -12,12 +12,12 @@ import { createAdminUserSchema } from '../validation/adminUserValidation.js';
 
 const router = Router();
 
-router.use(protect, authorizeRoles('ADMIN'));
+router.use(protect);
 
-router.post('/', validate(createAdminUserSchema), createAdminUser);
-router.get('/', listAdminUsers);
-router.get('/:id', getAdminUserById);
-router.patch('/:id', updateAdminUser);
-router.delete('/:id', deleteAdminUser);
+router.post('/', authorizeRoles('ADMIN'), validate(createAdminUserSchema), createAdminUser);
+router.get('/', authorizeRoles('ADMIN', 'HOD', 'INSTRUCTOR'), listAdminUsers);
+router.get('/:id', authorizeRoles('ADMIN', 'HOD', 'INSTRUCTOR'), getAdminUserById);
+router.patch('/:id', authorizeRoles('ADMIN'), updateAdminUser);
+router.delete('/:id', authorizeRoles('ADMIN'), deleteAdminUser);
 
 export default router;

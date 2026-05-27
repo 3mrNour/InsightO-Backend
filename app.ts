@@ -18,6 +18,7 @@ import ingestionroute from "./modules/AI/ingestion.route.js";
 import formGeneratorRoute from "./modules/AI/formGenerator.route.js";
 import aiUsageRoute from "./modules/AI/aiUsage.route.js";
 import formAIRoute from "./modules/AI/formAI.route.js";
+import profileRoutes from "./modules/profile/profile.route.js";
 
 import { getTokenUsage, getAdminTokenUsage } from "./modules/AI/aiUsage.controller.js";
 import { protect, authorizeRoles } from "./middlewares/authMiddleware.js";
@@ -57,6 +58,9 @@ export function createApp() {
   // Admin dashboard user management
   app.use("/api/admin/users", adminUserRoutes);
   app.use("/api/admin/departments", departmentRoutes);
+
+  // User profile
+  app.use("/api/users", profileRoutes);
 
   // File Upload routes (POST /api/upload)
   app.use("/api/upload", uploadRoutes);

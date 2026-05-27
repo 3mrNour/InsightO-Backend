@@ -3,6 +3,9 @@ import mongoose, { Schema, type Document, type Types } from "mongoose";
 export interface IHODProfile extends Document {
   userId: Types.ObjectId;
   departmentId: Types.ObjectId;
+  ai_synthesis?: any;
+  ai_synthesis_task_count?: number;
+  ai_synthesis_updated_at?: Date;
 }
 
 const hodProfileSchema = new Schema<IHODProfile>(
@@ -18,6 +21,9 @@ const hodProfileSchema = new Schema<IHODProfile>(
       ref: "Department",
       required: true,
     },
+    ai_synthesis: { type: Schema.Types.Mixed, default: null },
+    ai_synthesis_task_count: { type: Number, default: 0 },
+    ai_synthesis_updated_at: { type: Date, default: null },
   },
   { timestamps: true },
 );
