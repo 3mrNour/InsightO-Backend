@@ -94,12 +94,12 @@ submissionSchema.on('init', async (model: mongoose.Model<ISubmission>) => {
       }
     }
 
-    // 2. حذف الـ unique index القديم (لو موجود)
+    // 2. حذف الـ unique index القديم (لو موجود وبدون partialFilterExpression)
     const existingUniqueIndex = indexes.find(
       (index) => index.name === 'form_evaluator_subject_unique'
     );
 
-    if (existingUniqueIndex) {
+    if (existingUniqueIndex && !existingUniqueIndex.partialFilterExpression) {
       try {
         await model.collection.dropIndex('form_evaluator_subject_unique');
         console.log('🔄 Old unique index dropped to apply new partial filter expressions.');
