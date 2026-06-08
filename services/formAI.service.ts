@@ -153,7 +153,12 @@ export class FormAIService {
     for (const sub of submissions) {
       for (const answer of sub.answers) {
         if (!answer.question_id) continue;
-        const tag = questionTagMap.get(answer.question_id.toString());
+        
+        const qIdStr = (answer.question_id as any)._id 
+          ? (answer.question_id as any)._id.toString() 
+          : answer.question_id.toString();
+          
+        const tag = questionTagMap.get(qIdStr);
         if (!tag) continue;
 
         const val = answer.value;
