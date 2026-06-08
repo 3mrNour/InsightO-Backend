@@ -432,4 +432,83 @@ RULES
       return { tags: tagsResults, global: fallbackGlobal };
     }
   }
+
+  /**
+   * Process Comparative Analysis for Departments, Courses, and Instructors
+   */
+  public static async processComparativeAnalysis(
+    groupedData: Record<string, any>,
+    entityType: "DEPARTMENT" | "COURSE" | "INSTRUCTOR",
+    entityName: string,
+    lang: "ar" | "en",
+    userId: string
+  ): Promise<any> {
+    const context = JSON.stringify(groupedData);
+
+    let rolePrompt = "";
+    if (entityType === "DEPARTMENT") {
+      rolePrompt = "act as a Quality Assurance Consultant analyzing strategic departmental performance, faculty efficiency, and general student satisfaction across years.";
+    } else if (entityType === "COURSE") {
+      rolePrompt = "act as a Curriculum Developer analyzing curriculum clarity, difficulty, and content updates across years.";
+    } else if (entityType === "INSTRUCTOR") {
+      rolePrompt = "act as an Academic HR Expert analyzing teaching style, communication, and fairness across years.";
+    }
+
+    const prompt = `You are a strict, world-class ${rolePrompt.replace("act as a ", "")}.
+Your absolute mandate is to perform a deep, data-driven semantic analysis of the historical feedback data for the academic entity named "${entityName}".
+
+CRITICAL INSTRUCTIONS:
+1. NEVER use the placeholder text "\${entityName}" or "\${rolePrompt}" or any code variables in your response. Always write the actual name: "${entityName}".
+2. Do NOT give generic or vague feedback. Be specific, academic, and highly contextual based on the provided data.
+3. If lang = "ar" -> Return ALL string values in Arabic.
+4. If lang = "en" -> Return ALL string values in English.
+5. Keep the JSON keys strictly in English. Do NOT use Markdown tags like \`\`\`json.
+
+HISTORICAL DATA TO ANALYZE (Grouped by Evaluation Cycles):
+${context}
+
+TASK:
+Analyze the trajectory of "${entityName}" across these cycles. Identify patterns of growth or decay. 
+- "overall_score": Must be a realistic metric (0-100) reflecting the latest cycle's health.
+- "trend_analysis": Provide 2-3 deep, structurally rich sentences explaining the dynamic shifts between cycles for "${entityName}".
+- "core_strengths": List 2-4 granular, highly descriptive strengths extracted from the positive feedback.
+- "persistent_issues": List 2-4 specific, recurring bottlenecks or complaints.
+- "action_plan": Provide a clear, strategic roadmap with 3-4 concrete steps to address the persistent issues.
+
+OUTPUT FORMAT (STRICT JSON ONLY):
+{
+  "overall_score": 85,
+  "trend_analysis": "Write your detailed multi-cycle analysis here...",
+  "core_strengths": ["Detailed strength 1", "Detailed strength 2"],
+  "persistent_issues": ["Detailed issue 1", "Detailed issue 2"],
+  "action_plan": ["Actionable step 1", "Actionable step 2"]
+}`;
+
+    enforceTokenLimit(prompt);
+
+    try {
+      const llm = getLLM();
+      const response = await invokeWithUsageTracking(llm, userId, prompt, "analyze-comparative");
+      const raw = response.content.toString().trim();
+      const parsed = parseJsonResponse<any>(raw);
+
+      return {
+        overall_score: typeof parsed.overall_score === "number" ? parsed.overall_score : 50,
+        trend_analysis: parsed.trend_analysis || "",
+        core_strengths: Array.isArray(parsed.core_strengths) ? parsed.core_strengths : [],
+        persistent_issues: Array.isArray(parsed.persistent_issues) ? parsed.persistent_issues : [],
+        action_plan: Array.isArray(parsed.action_plan) ? parsed.action_plan : []
+      };
+    } catch (err: any) {
+      if (err instanceof AppError && err.statusCode === 429) throw err;
+      console.error("[FormAIService] processComparativeAnalysis error:", err);
+      return {
+        overall_score: 0,
+        trend_analysis: "Analysis failed.",
+        core_strengths: [],
+        persistent_issues: [],
+        action_plan: []
+      };
+    }
+  }
 }

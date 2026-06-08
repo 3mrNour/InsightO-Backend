@@ -6,6 +6,7 @@ import {
   getAllDepartments,
   getDepartmentById,
   updateDepartment,
+  getDepartmentInsights,
 } from '../controller/departmentController.js';
 
 const router = Router();
@@ -17,5 +18,6 @@ router.get('/', getAllDepartments);
 router.get('/:id', getDepartmentById);
 router.patch('/:id', updateDepartment);
 router.delete('/:id', deleteDepartment);
+router.get('/:id/insights', getDepartmentInsights);
 
 export default router;

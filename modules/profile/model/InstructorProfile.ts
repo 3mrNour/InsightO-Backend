@@ -7,6 +7,9 @@ export interface IInstructorProfile extends Document {
   ai_synthesis?: any;
   ai_synthesis_task_count?: number;
   ai_synthesis_updated_at?: Date;
+  ai_evaluation_synthesis?: any;
+  ai_evaluation_count?: number;
+  ai_evaluation_updated_at?: Date;
 }
 
 const instructorProfileSchema = new Schema<IInstructorProfile>(
@@ -31,6 +34,9 @@ const instructorProfileSchema = new Schema<IInstructorProfile>(
     ai_synthesis: { type: Schema.Types.Mixed, default: null },
     ai_synthesis_task_count: { type: Number, default: 0 },
     ai_synthesis_updated_at: { type: Date, default: null },
+    ai_evaluation_synthesis: { type: Schema.Types.Mixed, default: null },
+    ai_evaluation_count: { type: Number, default: 0 },
+    ai_evaluation_updated_at: { type: Date, default: null },
   },
   { timestamps: true },
 );

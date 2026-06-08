@@ -2,6 +2,8 @@ import type { NextFunction, Request, Response } from 'express';
 import Department from '../model/Department.js';
 import HODProfile from '../../profile/model/HODProfile.js';
 import { AppError } from '../../../utils/AppError.js';
+import { EvaluationAggregationService } from '../../../services/evaluationAggregation.service.js';
+import { FormAIService } from '../../../services/formAI.service.js';
 
 export const createDepartment = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -82,6 +84,52 @@ export const deleteDepartment = async (req: Request, res: Response, next: NextFu
       return next(new AppError('Department not found', 404));
     }
     res.status(200).json({ status: 'success', message: 'Department deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getDepartmentInsights = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const department = await Department.findById(req.params.id);
+    if (!department) {
+      return next(new AppError('Department not found', 404));
+    }
+
+    const { chartData, groupedData, totalSubmissions } = await EvaluationAggregationService.aggregateSubjectHistory(department._id);
+
+    const forceAI = req.query.forceAI === 'true';
+
+    // Smart Caching & Fallback Logic
+    if (forceAI || totalSubmissions > ((department as any).ai_evaluation_count || 0)) {
+      try {
+        const user = (req as any).user;
+        const aiResult = await FormAIService.processComparativeAnalysis(
+          groupedData,
+          "DEPARTMENT",
+          department.name,
+          "en",
+          user?.id || user?._id || "anonymous"
+        );
+
+        // Update cache
+        (department as any).ai_evaluation_synthesis = aiResult;
+        (department as any).ai_evaluation_count = totalSubmissions;
+        (department as any).ai_evaluation_updated_at = new Date();
+        await department.save();
+      } catch (aiError: any) {
+        console.warn("AI Generation failed (Quota or API Error), falling back to cached data.", aiError);
+      }
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        chartData,
+        aiInsights: (department as any).ai_evaluation_synthesis || null,
+        ai_status: (department as any).ai_evaluation_synthesis ? "active" : "quota_exceeded_or_unavailable"
+      }
+    });
   } catch (error) {
     next(error);
   }

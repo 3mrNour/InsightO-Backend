@@ -9,6 +9,8 @@ import { AppError } from "../../utils/AppError.js";
 import { asyncWrap } from "../../middlewares/asyncWrap.js";
 import User from "../auth/model/User_Schema.js";
 import { UserSchema } from "../../utils/User.js";
+import { EvaluationAggregationService } from "../../services/evaluationAggregation.service.js";
+import { FormAIService } from "../../services/formAI.service.js";
 
 export const createCourse = asyncWrap(async (
   req: Request,
@@ -267,4 +269,52 @@ export const deleteCourse = asyncWrap(async (
   await course.deleteOne();
 
   res.status(200).json({ status: "success", message: "Course deleted successfully" });
+});
+
+export const getCourseInsights = asyncWrap(async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const course = await Course.findById(req.params.id);
+  
+  if (!course) {
+    return next(new AppError("Course not found", 404));
+  }
+
+  const { chartData, groupedData, totalSubmissions } = await EvaluationAggregationService.aggregateSubjectHistory(course._id);
+
+  const forceAI = req.query.forceAI === 'true';
+
+  // Smart Caching & Fallback Logic
+  if (forceAI || totalSubmissions > (course.ai_evaluation_count || 0)) {
+    try {
+      const user = (req as any).user;
+      const aiResult = await FormAIService.processComparativeAnalysis(
+        groupedData,
+        "COURSE",
+        course.name,
+        "en",
+        user?.id || user?._id || "anonymous"
+      );
+
+      // Update course cache
+      course.ai_evaluation_synthesis = aiResult;
+      course.ai_evaluation_count = totalSubmissions;
+      course.ai_evaluation_updated_at = new Date();
+      await course.save();
+    } catch (aiError: any) {
+      // SILENT FALLBACK
+      console.warn("AI Generation failed (Quota or API Error), falling back to cached data.", aiError);
+    }
+  }
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      chartData,
+      aiInsights: course.ai_evaluation_synthesis || null,
+      ai_status: course.ai_evaluation_synthesis ? "active" : "quota_exceeded_or_unavailable"
+    }
+  });
 });

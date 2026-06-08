@@ -7,6 +7,8 @@ import InstructorProfile from "./model/InstructorProfile.js";
 import HODProfile from "./model/HODProfile.js";
 import TaskSubmission from "../taskSubmittion/taskSubmittion.model.js";
 import { ProfileAIService } from "../AI/profileAI.service.js";
+import { EvaluationAggregationService } from "../../services/evaluationAggregation.service.js";
+import { FormAIService } from "../../services/formAI.service.js";
 
 export const getProfileAnalytics = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
   const { userId } = req.params;
@@ -222,6 +224,56 @@ export const getProfileAnalytics = asyncWrap(async (req: Request, res: Response,
         updatedAt: sub.updatedAt
       })),
       ai_synthesis
+    }
+  });
+});
+
+export const getInstructorInsights = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
+  const { id } = req.params;
+  
+  // Find instructor
+  const instructor = await User.findById(id);
+  if (!instructor || instructor.role !== 'INSTRUCTOR') {
+    return next(new AppError("Instructor not found", 404));
+  }
+
+  const profile = await InstructorProfile.findOne({ userId: id });
+  if (!profile) {
+    return next(new AppError("Instructor profile not found", 404));
+  }
+
+  const { chartData, groupedData, totalSubmissions } = await EvaluationAggregationService.aggregateSubjectHistory(instructor._id);
+
+  const forceAI = req.query.forceAI === 'true';
+
+  if (forceAI || totalSubmissions > ((profile as any).ai_evaluation_count || 0)) {
+    try {
+      const reqUser = (req as any).user;
+      const fullName = `${instructor.firstName} ${instructor.lastName}`.trim();
+      
+      const aiResult = await FormAIService.processComparativeAnalysis(
+        groupedData,
+        "INSTRUCTOR",
+        fullName,
+        "en",
+        reqUser?.id || reqUser?._id || "anonymous"
+      );
+
+      (profile as any).ai_evaluation_synthesis = aiResult;
+      (profile as any).ai_evaluation_count = totalSubmissions;
+      (profile as any).ai_evaluation_updated_at = new Date();
+      await profile.save();
+    } catch (aiError: any) {
+      console.warn("AI Generation failed (Quota or API Error), falling back to cached data.", aiError);
+    }
+  }
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      chartData,
+      aiInsights: (profile as any).ai_evaluation_synthesis || null,
+      ai_status: (profile as any).ai_evaluation_synthesis ? "active" : "quota_exceeded_or_unavailable"
     }
   });
 });

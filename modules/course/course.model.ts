@@ -10,6 +10,9 @@ export interface ICourse extends Document {
   instructorId: Types.ObjectId;
   credits?: number;
   isActive: boolean;
+  ai_evaluation_synthesis?: any;
+  ai_evaluation_count?: number;
+  ai_evaluation_updated_at?: Date;
 }
 
 const courseSchema = new Schema<ICourse>(
@@ -48,6 +51,9 @@ const courseSchema = new Schema<ICourse>(
       type: Boolean,
       default: true,
     },
+    ai_evaluation_synthesis: { type: Schema.Types.Mixed, default: null },
+    ai_evaluation_count: { type: Number, default: 0 },
+    ai_evaluation_updated_at: { type: Date, default: null },
   },
   { timestamps: true },
 );

@@ -28,7 +28,8 @@ import { z } from "zod";
 // helper
 const objectId = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId");
 
-const rolesEnum = z.enum(["ADMIN", "HOD", "INSTRUCTOR", "STUDENT"]);
+const evaluatorRolesEnum = z.enum(["ADMIN", "HOD", "INSTRUCTOR", "STUDENT"]);
+const subjectRolesEnum = z.enum(["ADMIN", "HOD", "INSTRUCTOR", "STUDENT", "DEPARTMENT", "COURSE"]);
 
 export const createFormSchema = z.object({
   body: z.object({
@@ -45,13 +46,13 @@ export const createFormSchema = z.object({
       .optional(),
 
     evaluator_roles: z
-      .array(rolesEnum)
+      .array(evaluatorRolesEnum)
       .min(1, "At least one evaluator role required")
       .refine((roles) => new Set(roles).size === roles.length, {
         message: "Duplicate roles are not allowed"
       }),
 
-    subject_role: rolesEnum,
+    subject_role: subjectRolesEnum,
 
     is_anonymous: z.boolean().optional().default(false),
     is_active: z.boolean().optional().default(true),

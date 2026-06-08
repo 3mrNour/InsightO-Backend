@@ -7,6 +7,7 @@ import {
   getCourseById,
   updateCourse,
   deleteCourse,
+  getCourseInsights,
 } from "./course.controller.js";
 import { protect, authorizeRoles } from "../../middlewares/authMiddleware.js";
 import { validate } from '../../middlewares/validateMiddleware.js';
@@ -56,7 +57,13 @@ router
   /**
    * DELETE /api/courses/:id
    * الوصول: ADMIN و HOD فقط
-   */
   .delete(authorizeRoles("ADMIN", "HOD"), deleteCourse);
+
+/**
+ * GET /api/courses/:id/insights
+ */
+router
+  .route("/:id/insights")
+  .get(getCourseInsights);
 
 export default router;
