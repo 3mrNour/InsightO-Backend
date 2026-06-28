@@ -1,4 +1,4 @@
-import { ChatOpenAI } from "@langchain/openai";
+import { AIFactory } from "../../services/aiProvider.factory.js";
 import { PromptTemplate } from "@langchain/core/prompts";
 import { invokeWithUsageTracking } from "../../utils/aiUsageTracking.js";
 
@@ -34,20 +34,11 @@ SCHEMA FOR EACH QUESTION:
 Output your JSON now:
 `);
 
-let _llm: ChatOpenAI | null = null;
+let _llm: any = null;
 
-function getLLM(): ChatOpenAI {
+function getLLM(): any {
   if (!_llm) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("OPENAI_API_KEY is not set in environment variables.");
-    }
-    _llm = new ChatOpenAI({
-      modelName: "gpt-4o",
-      temperature: 0.7,
-      openAIApiKey: apiKey,
-      modelKwargs: { response_format: { type: "json_object" } },
-    });
+    _llm = AIFactory.getLLM({ temperature: 0.7, format: "json" });
   }
   return _llm;
 }

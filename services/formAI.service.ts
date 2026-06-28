@@ -1,4 +1,4 @@
-import { ChatOpenAI } from "@langchain/openai";
+import { AIFactory } from "./aiProvider.factory.js";
 import Form from "../modules/form/model/formSchema.js";
 import Question from "../modules/question/models/Question_Schema.js";
 import Submission from "../modules/submission/submission.model.js";
@@ -64,19 +64,11 @@ export function enforceTokenLimit(text: string): void {
 
 // ─── LLM Singleton ────────────────────────────────────────────────────────────
 
-let _llm: ChatOpenAI | null = null;
+let _llm: any = null;
 
-function getLLM(): ChatOpenAI {
+function getLLM(): any {
   if (!_llm) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("OPENAI_API_KEY is not defined in the environment variables.");
-    }
-    _llm = new ChatOpenAI({
-      modelName: "gpt-4o-mini",
-      temperature: 0.2,
-      openAIApiKey: apiKey,
-    });
+    _llm = AIFactory.getLLM({ temperature: 0.2, format: "json" });
   }
   return _llm;
 }
@@ -153,11 +145,11 @@ export class FormAIService {
     for (const sub of submissions) {
       for (const answer of sub.answers) {
         if (!answer.question_id) continue;
-        
-        const qIdStr = (answer.question_id as any)._id 
-          ? (answer.question_id as any)._id.toString() 
+
+        const qIdStr = (answer.question_id as any)._id
+          ? (answer.question_id as any)._id.toString()
           : answer.question_id.toString();
-          
+
         const tag = questionTagMap.get(qIdStr);
         if (!tag) continue;
 

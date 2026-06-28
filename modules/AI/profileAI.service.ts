@@ -1,4 +1,4 @@
-import { ChatOpenAI } from "@langchain/openai";
+import { AIFactory } from "../../services/aiProvider.factory.js";
 import { invokeWithUsageTracking } from "../../utils/aiUsageTracking.js";
 
 // Helper to reliably extract strictly formatted JSON from LLM outputs
@@ -72,16 +72,7 @@ OUTPUT STRICT JSON in the following exact format. Do not use markdown tags like 
   "action_plan": ["actionable advice tailored to their weaknesses"]
 }`;
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("OPENAI_API_KEY is not configured");
-    }
-
-    const llm = new ChatOpenAI({
-      modelName: "gpt-4o-mini",
-      temperature: 0.2,
-      openAIApiKey: apiKey,
-    });
+    const llm = AIFactory.getLLM({ temperature: 0.2, format: "json" });
 
     try {
       const response = await invokeWithUsageTracking(llm, userId, prompt, "profile-analytics");

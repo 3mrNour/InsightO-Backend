@@ -4,6 +4,7 @@ import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
 import mongoose from "mongoose";
+import { AIFactory } from "../../services/aiProvider.factory.js";
 // import { Chunk } from "./chunk.model.js";
 import fs from "fs/promises";
 import path from "path";
@@ -22,9 +23,6 @@ export class IngestionService {
     const { file, text, url, metadata } = payload;
     let docs: Document[] = [];
 
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not defined.");
-    }
 
     // 1. Extract from PDF, fetch URL, or Wrap text into Document
     if (file) {
@@ -71,17 +69,18 @@ export class IngestionService {
     if (!mongoose.connection.db) {
       throw new Error("MongoDB is not connected properly.");
     }
-    const collection = mongoose.connection.db.collection("chunks");
+    const { provider, embeddings } = AIFactory.getEmbeddings();
+    const collectionName = provider === "openai" ? "chunks_openai" : "chunks_ollama";
+    const indexName = provider === "openai" ? "vector_index_openai" : "vector_index_ollama";
+
+    const collection = mongoose.connection.db.collection(collectionName);
 
     await MongoDBAtlasVectorSearch.fromDocuments(
       splitDocs,
-      new OpenAIEmbeddings({
-        model: "text-embedding-3-small",
-        apiKey: process.env.OPENAI_API_KEY,
-      }),
+      embeddings,
       {
         collection: collection as any,
-        indexName: "vector_index", // Replace with your Atlas Vector Search Index name if different
+        indexName: indexName,
         textKey: "text",
         embeddingKey: "embedding",
       }

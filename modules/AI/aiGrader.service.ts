@@ -5,7 +5,7 @@
 // Supports: TEXT, FILE (extracted text), MCQ, MSQ answer types.
 // ---------------------------------------------------------------------------
 
-import { ChatOpenAI } from "@langchain/openai";
+import { AIFactory } from "../../services/aiProvider.factory.js";
 import { estimateTokens } from "../../services/formAI.service.js";
 import { AppError } from "../../utils/AppError.js";
 import { invokeWithUsageTracking } from "../../utils/aiUsageTracking.js";
@@ -62,18 +62,11 @@ export interface GradeResult {
 
 // ── LLM Singleton ────────────────────────────────────────────────────────────
 
-let _llm: ChatOpenAI | null = null;
+let _llm: any = null;
 
-function getLLM(): ChatOpenAI {
+function getLLM(): any {
   if (!_llm) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("OPENAI_API_KEY is not set in environment variables.");
-    _llm = new ChatOpenAI({
-      modelName: "gpt-4o-mini",
-      temperature: 0,
-      openAIApiKey: apiKey,
-      maxTokens: 2048,
-    });
+    _llm = AIFactory.getLLM({ temperature: 0, format: "json" });
   }
   return _llm;
 }
@@ -249,29 +242,29 @@ REQUIRED JSON OUTPUT FORMAT:
  * No vector search. No side effects. Returns clean JSON.
  * Throws on failure — callers should wrap in try/catch.
  */
- export async function gradeSubmission(input: GradeInput): Promise<GradeResult> {
-   const { content, rubric, type = "text", correctAnswer, correctAnswers, selectedAnswers, userId = "anonymous" } = input;
+export async function gradeSubmission(input: GradeInput): Promise<GradeResult> {
+  const { content, rubric, type = "text", correctAnswer, correctAnswers, selectedAnswers, userId = "anonymous" } = input;
 
-   switch (type) {
-     case "mcq": {
-       if (!correctAnswer) {
-         throw new AppError("MCQ grading requires 'correctAnswer'.", 400);
+  switch (type) {
+    case "mcq": {
+      if (!correctAnswer) {
+        throw new AppError("MCQ grading requires 'correctAnswer'.", 400);
       }
-       return gradeMCQ(content, correctAnswer);
-     }
-
-     case "msq": {
-       if (!correctAnswers || !correctAnswers.length) {
-         throw new AppError("MSQ grading requires 'correctAnswers'.", 400);
-       }
-       return gradeMSQ(selectedAnswers ?? [], correctAnswers);
+      return gradeMCQ(content, correctAnswer);
     }
 
-     case "file":
-     case "text":
-     default: {
-       // For FILE type, caller must have already extracted text into `content`
-     return gradeLLM(content, rubric, userId);
+    case "msq": {
+      if (!correctAnswers || !correctAnswers.length) {
+        throw new AppError("MSQ grading requires 'correctAnswers'.", 400);
+      }
+      return gradeMSQ(selectedAnswers ?? [], correctAnswers);
+    }
+
+    case "file":
+    case "text":
+    default: {
+      // For FILE type, caller must have already extracted text into `content`
+      return gradeLLM(content, rubric, userId);
     }
   }
- }
+}
