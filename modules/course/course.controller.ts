@@ -284,6 +284,12 @@ export const getCourseInsights = asyncWrap(async (
 
   const { chartData, groupedData, totalSubmissions } = await EvaluationAggregationService.aggregateSubjectHistory(course._id);
 
+  // Clear bad cache
+  if (course.ai_evaluation_synthesis && course.ai_evaluation_synthesis.trend_analysis === "Analysis failed.") {
+    course.ai_evaluation_synthesis = null;
+    course.ai_evaluation_count = 0;
+  }
+
   const forceAI = req.query.forceAI === 'true';
 
   // Smart Caching & Fallback Logic

@@ -499,13 +499,7 @@ OUTPUT FORMAT (STRICT JSON ONLY):
     } catch (err: any) {
       if (err instanceof AppError && err.statusCode === 429) throw err;
       console.error("[FormAIService] processComparativeAnalysis error:", err);
-      return {
-        overall_score: 0,
-        trend_analysis: "Analysis failed.",
-        core_strengths: [],
-        persistent_issues: [],
-        action_plan: []
-      };
+      throw err;
     }
   }
 }

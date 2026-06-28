@@ -24,13 +24,31 @@ export class AIFactory {
     const hasOpenAIKey = apiKey && apiKey.trim().length > 0 && apiKey !== "your_openai_api_key_here";
 
     if (hasOpenAIKey) {
-      // 3. تجهيز OpenAI
+      // 3. تجهيز OpenAI / Groq / SambaNova بناءً على نوع المفتاح
+      let modelName = "gpt-4o-mini";
+      let baseURL: string | undefined = undefined;
+
+      if (apiKey.startsWith("gsk_")) {
+        // Groq Key
+        modelName = "llama-3.1-8b-instant";
+        baseURL = "https://api.groq.com/openai/v1";
+      } else if (apiKey.startsWith("sbg_")) {
+        // SambaNova Key
+        modelName = "Meta-Llama-3.1-8B-Instruct";
+        baseURL = "https://api.sambanova.ai/v1";
+      }
+
       const openaiKwargs: any = {
-        modelName: "gpt-4o-mini",
+        modelName,
         temperature,
         openAIApiKey: apiKey,
         maxRetries: 0, // 🔥 الأهم: امنع LangChain من المحاولات الغبية عشان يفشل فوراً لو مفيش رصيد
       };
+
+      if (baseURL) {
+        openaiKwargs.configuration = { baseURL };
+      }
+
       if (options?.format === "json") {
         openaiKwargs.modelKwargs = { response_format: { type: "json_object" } };
       }
@@ -79,7 +97,7 @@ export class AIFactory {
    */
   static getEmbeddings() {
     const apiKey = process.env.OPENAI_API_KEY;
-    const hasOpenAIKey = apiKey && apiKey.trim().length > 0 && apiKey !== "your_openai_api_key_here";
+    const hasOpenAIKey = apiKey && apiKey.trim().length > 0 && apiKey.startsWith("sk-");
 
     if (hasOpenAIKey) {
       return {
