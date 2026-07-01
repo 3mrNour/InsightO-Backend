@@ -280,3 +280,29 @@ export const getFormSubmissions = asyncWrap(async (req: Request, res: Response, 
     data: submissions
   });
 });
+
+/**
+ * getMyFormSubmissions
+ * Retrieves all responses submitted by the authenticated student.
+ */
+export const getMyFormSubmissions = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
+  const user = (req as any).user;
+  const userId = user.id || user._id;
+  
+  const submissions = await Submission.find({ evaluator_id: userId })
+    .populate({
+      path: 'form_id',
+      select: 'title description label category'
+    })
+    .populate({
+      path: 'subject_id',
+      select: 'name firstName lastName email role'
+    })
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    status: "success",
+    count: submissions.length,
+    data: submissions
+  });
+});
