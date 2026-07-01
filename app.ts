@@ -14,6 +14,7 @@ import taskSubmittionRoutes from "./modules/taskSubmittion/taskSubmittion.route.
 import courseRoutes from "./modules/course/course.route.js";
 import studentRoutes from "./modules/student/student.route.js";
 import cycleRoutes from "./modules/cycle/cycle.route.js";
+import facilityRoutes from "./modules/facility/facility.route.js";
 import ingestionroute from "./modules/AI/ingestion.route.js";
 import formGeneratorRoute from "./modules/AI/formGenerator.route.js";
 import aiUsageRoute from "./modules/AI/aiUsage.route.js";
@@ -79,6 +80,9 @@ export function createApp() {
 
   // Evaluation Cycle routes
   app.use("/api/cycles", cycleRoutes);
+
+  // Facility routes
+  app.use("/api/facilities", facilityRoutes);
 
   // AI routes
   app.use("/api/ai", ingestionroute);

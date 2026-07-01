@@ -96,7 +96,34 @@ export const getDepartmentInsights = async (req: Request, res: Response, next: N
       return next(new AppError('Department not found', 404));
     }
 
-    const { chartData, groupedData, totalSubmissions } = await EvaluationAggregationService.aggregateSubjectHistory(department._id);
+    let chartData: any[] = [];
+    let groupedData: Record<string, any> = {};
+    let totalSubmissions = 0;
+
+    try {
+      const agg = await EvaluationAggregationService.aggregateSubjectHistory(department._id);
+      chartData = agg.chartData;
+      groupedData = agg.groupedData;
+      totalSubmissions = agg.totalSubmissions;
+    } catch (error: any) {
+      if (error.message === "EMPTY_DATASET") {
+        return res.status(200).json({
+          status: "success",
+          data: {
+            chartData: [],
+            aiInsights: {
+              overall_score: 0,
+              trend_analysis: "No data available",
+              core_strengths: [],
+              persistent_issues: [],
+              action_plan: []
+            },
+            ai_status: "no_data"
+          }
+        });
+      }
+      return next(error);
+    }
 
     const forceAI = req.query.forceAI === 'true';
 
