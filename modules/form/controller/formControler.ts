@@ -17,7 +17,8 @@ export const createForm = async (req: Request, res: Response, next: NextFunction
       department_id,
       category,
       course_id,
-      instructor_id
+      instructor_id,
+      facility_id
     } = req.body;
 
     const form = await Form.create({
@@ -30,6 +31,7 @@ export const createForm = async (req: Request, res: Response, next: NextFunction
       category,
       course_id,
       instructor_id,
+      facility_id,
       creator_id: user._id
     });
 
@@ -56,12 +58,23 @@ export const getAllForms = async (req: Request, res: Response, next: NextFunctio
       query = { creator_id: user._id };
     }
 
+    if (req.query.facility_id) {
+      query.facility_id = req.query.facility_id;
+      delete query.creator_id;
+    } else if (req.query.subject_id) {
+      query.facility_id = req.query.subject_id;
+      delete query.creator_id;
+    }
+
     const forms = await Form.find(query).populate({
       path: 'questions',
       select: 'label title description type required options ai_tag order'
     }).populate({
       path: 'creator_id',
       select: 'name email'
+    }).populate({
+      path: 'facility_id',
+      select: 'name'
     });
     res.json({
       status: "success",
@@ -83,6 +96,9 @@ export const getFormById = async (req: Request, res: Response, next: NextFunctio
       }).populate({
         path: 'creator_id',
         select: 'name email'
+      }).populate({
+        path: 'facility_id',
+        select: 'name'
       });
     if (!form) {
       return next(new AppError("Form not found", 404));
@@ -177,7 +193,7 @@ export const updateFormSettings = async (req: Request, res: Response, next: Next
       return next(new AppError("Not allowed", 403));
     }
     const updates: any = {};
-    ["title", "description", "is_active", "is_anonymous", "category", "course_id", "instructor_id"].forEach(field => {
+    ["title", "description", "is_active", "is_anonymous", "category", "course_id", "instructor_id", "facility_id"].forEach(field => {
       if (req.body[field] !== undefined) {
         updates[field] = req.body[field];
       }
@@ -202,6 +218,9 @@ export const getPublicFormById = async (req: Request, res: Response, next: NextF
       }).populate({
         path: 'creator_id',
         select: 'name email'
+      }).populate({
+        path: 'facility_id',
+        select: 'name'
       });
     if (!form) {
       return next(new AppError("Form not found", 404));
