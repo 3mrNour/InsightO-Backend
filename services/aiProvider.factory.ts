@@ -3,12 +3,12 @@ import { ChatOllama, OllamaEmbeddings } from "@langchain/ollama";
 
 export class AIFactory {
   /**
-   * Returns an instance of the configured LLM with Smart Fallback.
+   * Returns an instance of the configured LLM. Tries Ollama first, falls back to Groq/OpenAI if Ollama fails.
    */
   static getLLM(options?: { temperature?: number; format?: "json" }) {
     const temperature = options?.temperature ?? 0.7;
 
-    // 1. تجهيز Ollama كخطة بديلة جاهزة
+    // 1. Prepare Ollama as the Primary Model
     const ollamaKwargs: any = {
       baseUrl: process.env.OLLAMA_BASE_URL || "http://localhost:11434",
       model: "llama3.1:8b",
@@ -19,12 +19,13 @@ export class AIFactory {
     }
     const ollamaModel = new ChatOllama(ollamaKwargs);
 
-    // 2. فحص مفتاح OpenAI
+    // 2. Prepare Groq / OpenAI as the Fallback Model
     const apiKey = process.env.OPENAI_API_KEY;
     const hasOpenAIKey = apiKey && apiKey.trim().length > 0 && apiKey !== "your_openai_api_key_here";
+    
+    let fallbackModel: ChatOpenAI | null = null;
 
     if (hasOpenAIKey) {
-      // 3. تجهيز OpenAI / Groq / SambaNova بناءً على نوع المفتاح
       let modelName = "gpt-4o-mini";
       let baseURL: string | undefined = undefined;
 
@@ -42,7 +43,7 @@ export class AIFactory {
         modelName,
         temperature,
         openAIApiKey: apiKey,
-        maxRetries: 0, // 🔥 الأهم: امنع LangChain من المحاولات الغبية عشان يفشل فوراً لو مفيش رصيد
+        maxRetries: 0,
       };
 
       if (baseURL) {
@@ -52,48 +53,43 @@ export class AIFactory {
       if (options?.format === "json") {
         openaiKwargs.modelKwargs = { response_format: { type: "json_object" } };
       }
-      const openaiModel = new ChatOpenAI(openaiKwargs);
-
-      // 🔥 4. السحر هنا: Ultimate Proxy بيراقب كل دوال التنفيذ مش invoke بس
-      return new Proxy(openaiModel, {
-        get(target, prop) {
-          const origMethod = (target as any)[prop];
-
-          // قايمة بكل الدوال اللي LangChain ممكن تستخدمها لبعت الريكويست
-          const executionMethods = ["invoke", "generate", "call", "predict", "predictMessages"];
-
-          if (typeof origMethod === "function" && executionMethods.includes(prop as string)) {
-            return async (...args: any[]) => {
-              try {
-                // جرب OpenAI الأول
-                return await origMethod.apply(target, args);
-              } catch (error: any) {
-                // لو الرصيد خلص أو حصل أي إيرور، هنصطاده هنا
-                console.warn(`[AIFactory] OpenAI Error on method '${String(prop)}' (${error.status || error.message}). Switching to Ollama natively...`);
-
-                // ابعت نفس الريكويست بنفس الدالة بالظبط للموديل المحلي
-                const fallbackMethod = (ollamaModel as any)[prop];
-                if (typeof fallbackMethod === "function") {
-                  return await fallbackMethod.apply(ollamaModel, args);
-                }
-                throw error; // لو الدالة مش موجودة في Ollama، ارمي الإيرور
-              }
-            };
-          }
-
-          // مرر أي خصائص تانية (زي getNumTokens) زي ما هي عشان الكود ميضربش
-          return Reflect.get(target, prop);
-        }
-      });
+      fallbackModel = new ChatOpenAI(openaiKwargs);
     }
 
-    // لو مفيش مفتاح من الأساس، هنرجع Ollama مباشرة
-    return ollamaModel;
+    // 3. Proxy to intercept calls to Ollama and fallback to Groq if Ollama fails
+    return new Proxy(ollamaModel, {
+      get(target, prop) {
+        const origMethod = (target as any)[prop];
+        const executionMethods = ["invoke", "generate", "call", "predict", "predictMessages"];
+
+        if (typeof origMethod === "function" && executionMethods.includes(prop as string)) {
+          return async (...args: any[]) => {
+            try {
+              // Try Ollama first
+              return await origMethod.apply(target, args);
+            } catch (error: any) {
+              console.warn(`[AIFactory] Ollama Error on method '${String(prop)}' (${error.status || error.message || error.code || 'Unknown'}).`);
+              
+              if (fallbackModel) {
+                console.warn(`[AIFactory] Switching to Groq/OpenAI Fallback...`);
+                const fallbackMethod = (fallbackModel as any)[prop];
+                if (typeof fallbackMethod === "function") {
+                  return await fallbackMethod.apply(fallbackModel, args);
+                }
+              }
+              
+              throw error; // If no fallback or fallback method doesn't exist, throw original error
+            }
+          };
+        }
+
+        return Reflect.get(target, prop);
+      }
+    });
   }
 
   /**
-   * Returns embeddings model with Fallback support if needed.
-   * (Note: Vector DB dimensions must match, so use this carefully based on your ingestion logic)
+   * Returns embeddings model.
    */
   static getEmbeddings() {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -117,4 +113,4 @@ export class AIFactory {
       };
     }
   }
-}
+}

@@ -65,12 +65,16 @@ export const getProfileAnalytics = asyncWrap(async (req: Request, res: Response,
       if (targetUser.role === 'ADMIN' || targetUser.role === 'HOD') {
         return next(new AppError("Access denied.", 403));
       }
-      // HOD can view anyone in their department
+      // HOD can view anyone in their departments
       const hodProfile = await HODProfile.findOne({ userId: reqUserId });
-      if (!hodProfile) return next(new AppError("HOD profile not found.", 403));
+      if (!hodProfile || !hodProfile.departmentIds || hodProfile.departmentIds.length === 0) {
+        return next(new AppError("HOD profile not found or no departments assigned.", 403));
+      }
 
       const targetDepartment = profileDoc ? (profileDoc.departmentId?._id?.toString() || profileDoc.departmentId?.toString()) : null;
-      if (targetDepartment !== hodProfile.departmentId.toString()) {
+      const isAuthorized = targetDepartment && hodProfile.departmentIds.some(id => id.toString() === targetDepartment);
+      
+      if (!isAuthorized) {
         return next(new AppError("Access denied. User is not in your department.", 403));
       }
     }

@@ -183,7 +183,7 @@ const createOrUpdateProfileByRole = async (
     }
     await HODProfile.findOneAndUpdate(
       { userId },
-      { $set: { departmentId: data.departmentId } },
+      { $addToSet: { departmentIds: data.departmentId } },
       { new: true, upsert: true, setDefaultsOnInsert: true },
     );
   }
@@ -288,10 +288,10 @@ export const listAdminUsers = async (req: Request, res: Response, next: NextFunc
       usersQuery = { _id: { $in: studentUserIds } };
     } else if (userRole === 'HOD') {
       const hodProfile = await HODProfile.findOne({ userId });
-      if (!hodProfile) return next(new AppError('HOD profile not found', 404));
+      if (!hodProfile || !hodProfile.departmentIds || hodProfile.departmentIds.length === 0) return next(new AppError('HOD profile not found or no departments assigned', 404));
 
-      const studentProfiles = await StudentProfile.find({ departmentId: hodProfile.departmentId }).select('userId');
-      const instructorProfiles = await InstructorProfile.find({ departmentId: hodProfile.departmentId }).select('userId');
+      const studentProfiles = await StudentProfile.find({ departmentId: { $in: hodProfile.departmentIds } }).select('userId');
+      const instructorProfiles = await InstructorProfile.find({ departmentId: { $in: hodProfile.departmentIds } }).select('userId');
       
       const userIds = [
         ...studentProfiles.map(p => p.userId),

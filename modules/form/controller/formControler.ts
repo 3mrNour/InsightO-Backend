@@ -4,6 +4,7 @@ import Question from "../../question/models/Question_Schema.js";
 import { AppError } from "../../../utils/AppError.js";
 import StudentProfile from "../../profile/model/StudentProfile.js";
 import Task from "../../task/task.model.js";
+import HODProfile from "../../profile/model/HODProfile.js";
 
 export const createForm = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -52,6 +53,20 @@ export const getAllForms = async (req: Request, res: Response, next: NextFunctio
 
     if (user.role === "STUDENT") {
       query = { is_active: true, evaluator_roles: "STUDENT" };
+    } else if (user.role === "HOD") {
+      const hodProfile = await HODProfile.findOne({ userId: user._id });
+      if (hodProfile && hodProfile.departmentIds && hodProfile.departmentIds.length > 0) {
+        query = {
+          $or: [
+            { creator_id: user._id },
+            { department_id: { $in: hodProfile.departmentIds } }
+          ]
+        };
+      } else {
+        query = { creator_id: user._id };
+      }
+    } else if (user.role === "ADMIN") {
+      query = {};
     } else {
       query = { creator_id: user._id };
     }

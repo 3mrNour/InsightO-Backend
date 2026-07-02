@@ -83,18 +83,18 @@ export const getCourses = asyncWrap(async (
   if (userRole === "STUDENT") {
     const studentProfile = await StudentProfile.findOne({ userId });
     if (!studentProfile) return next(new AppError("Student profile not found", 404));
-    
+
     query = { _id: { $in: studentProfile.enrolledCourses } };
-    
+
   } else if (userRole === "INSTRUCTOR") {
     query = { instructorId: userId };
-    
+
   } else if (userRole === "HOD") {
     const hodProfile = await HODProfile.findOne({ userId });
     if (!hodProfile) return next(new AppError("HOD profile not found", 404));
-    
+
     query = { departmentId: hodProfile.departmentId };
-    
+
   } else if (userRole === "ADMIN") {
     query = {};
   }
@@ -112,10 +112,10 @@ export const getCourses = asyncWrap(async (
       // نبحث في بروفايلات الطلبة عن أي طالب مسجل في الكورس ده
       const enrolledProfiles = await StudentProfile.find({ enrolledCourses: course._id })
         .populate("userId", "firstName lastName email"); // بنجيب بيانات الطالب الأساسية
-      
+
       // نستخرج بيانات اليوزر من البروفايل
       const enrolledStudents = enrolledProfiles.map(profile => profile.userId).filter(Boolean);
-      
+
       return {
         ...course,
         enrolledStudents // دلوقتي الفرونت إند هيلاقي المصفوفة دي مليانة!
@@ -147,7 +147,7 @@ export const getCourseById = asyncWrap(async (
   // 🚀 جلب الطلبة المسجلين في هذا الكورس تحديداً
   const enrolledProfiles = await StudentProfile.find({ enrolledCourses: courseDoc._id })
     .populate("userId", "firstName lastName email");
-    
+
   const enrolledStudents = enrolledProfiles.map(profile => profile.userId).filter(Boolean);
 
   const course = {
@@ -217,9 +217,9 @@ export const updateCourse = asyncWrap(async (
 
     // Remove course from students not in the list
     await StudentProfile.updateMany(
-      { 
-        enrolledCourses: course._id, 
-        userId: { $nin: validStudentObjectIds } 
+      {
+        enrolledCourses: course._id,
+        userId: { $nin: validStudentObjectIds }
       },
       { $pull: { enrolledCourses: course._id } }
     );
@@ -277,7 +277,7 @@ export const getCourseInsights = asyncWrap(async (
   next: NextFunction,
 ) => {
   const course = await Course.findById(req.params.id);
-  
+
   if (!course) {
     return next(new AppError("Course not found", 404));
   }

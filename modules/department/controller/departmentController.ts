@@ -9,7 +9,7 @@ export const createDepartment = async (req: Request, res: Response, next: NextFu
   try {
     const { name, code, description, hodId } = req.body;
     const department = await Department.create({ name, code, description });
-    
+
     if (hodId) {
       await HODProfile.findOneAndUpdate(
         { userId: hodId },
