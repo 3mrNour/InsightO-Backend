@@ -28,8 +28,8 @@ import { z } from "zod";
 // helper
 const objectId = z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid ObjectId");
 
-const evaluatorRolesEnum = z.enum(["ADMIN", "HOD", "INSTRUCTOR", "STUDENT"]);
-const subjectRolesEnum = z.enum(["ADMIN", "HOD", "INSTRUCTOR", "STUDENT", "DEPARTMENT", "COURSE"]);
+const evaluatorRolesEnum = z.enum(["ADMIN", "HOD", "INSTRUCTOR", "STUDENT", "GENERAL"]);
+const subjectRolesEnum = z.enum(["ADMIN", "HOD", "INSTRUCTOR", "STUDENT", "DEPARTMENT", "COURSE", "FACILITY"]);
 
 export const createFormSchema = z.object({
   body: z.object({
@@ -45,14 +45,8 @@ export const createFormSchema = z.object({
       .trim()
       .optional(),
 
-    evaluator_roles: z
-      .array(evaluatorRolesEnum)
-      .min(1, "At least one evaluator role required")
-      .refine((roles) => new Set(roles).size === roles.length, {
-        message: "Duplicate roles are not allowed"
-      }),
-
-    subject_role: subjectRolesEnum,
+    evaluator_roles: z.array(evaluatorRolesEnum).optional(),
+    subject_role: subjectRolesEnum.optional(),
 
     is_anonymous: z.boolean().optional().default(false),
     is_active: z.boolean().optional().default(true),
@@ -60,13 +54,39 @@ export const createFormSchema = z.object({
     department_id: objectId.optional(),
     category: z.enum(["GENERAL", "SPECIALIZED", "QUIZ"]).optional().default("GENERAL"),
     course_id: objectId.optional(),
-    instructor_id: objectId.optional()
+    instructor_id: objectId.optional(),
+    facility_id: objectId.optional()
   })
-  .refine((data) => {
-    // 🚨 Business rule: evaluator != subject
-    return !data.evaluator_roles.includes(data.subject_role);
-  }, {
-    message: "Evaluator role cannot be same as subject role",
-    path: ["subject_role"]
+  .superRefine((data, ctx) => {
+    if (data.category !== "QUIZ") {
+      // 🚨 Business rules for forms (non-quiz)
+      if (!data.evaluator_roles || data.evaluator_roles.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "At least one evaluator role required",
+          path: ["evaluator_roles"]
+        });
+      } else if (new Set(data.evaluator_roles).size !== data.evaluator_roles.length) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Duplicate roles are not allowed",
+          path: ["evaluator_roles"]
+        });
+      }
+      
+      if (!data.subject_role) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Subject role is required",
+          path: ["subject_role"]
+        });
+      } else if (data.evaluator_roles && data.evaluator_roles.includes(data.subject_role as any)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Evaluator role cannot be same as subject role",
+          path: ["subject_role"]
+        });
+      }
+    }
   })
 });

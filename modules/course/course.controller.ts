@@ -282,7 +282,34 @@ export const getCourseInsights = asyncWrap(async (
     return next(new AppError("Course not found", 404));
   }
 
-  const { chartData, groupedData, totalSubmissions } = await EvaluationAggregationService.aggregateSubjectHistory(course._id);
+  let chartData: any[] = [];
+  let groupedData: Record<string, any> = {};
+  let totalSubmissions = 0;
+
+  try {
+    const agg = await EvaluationAggregationService.aggregateSubjectHistory(course._id);
+    chartData = agg.chartData;
+    groupedData = agg.groupedData;
+    totalSubmissions = agg.totalSubmissions;
+  } catch (error: any) {
+    if (error.message === "EMPTY_DATASET") {
+      return res.status(200).json({
+        status: "success",
+        data: {
+          chartData: [],
+          aiInsights: {
+            overall_score: 0,
+            trend_analysis: "No data available",
+            core_strengths: [],
+            persistent_issues: [],
+            action_plan: []
+          },
+          ai_status: "no_data"
+        }
+      });
+    }
+    return next(error);
+  }
 
   // Clear bad cache
   if (course.ai_evaluation_synthesis && course.ai_evaluation_synthesis.trend_analysis === "Analysis failed.") {

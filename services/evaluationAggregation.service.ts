@@ -73,6 +73,10 @@ export class EvaluationAggregationService {
       }
     }
 
+    if (totalSubmissions === 0) {
+      throw new Error("EMPTY_DATASET");
+    }
+
     // تنسيق الداتا وترتيبها زمنياً
     const chartData = Object.entries(formDataMap)
       .map(([formId, data]) => {

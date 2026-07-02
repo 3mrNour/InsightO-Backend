@@ -299,7 +299,17 @@ RULES
   public static async processFormSubmissionAnalysis(
     formId: string,
     userId: string = "anonymous"
-  ): Promise<FormAnalysisPayload> {
+  ): Promise<any> {
+    const submissions = await Submission.find({ form_id: formId });
+    if (!submissions || submissions.length === 0) {
+      return {
+        error: "NO_DATA",
+        message: "Cannot perform AI analysis on a form with zero submissions.",
+        overall_score: 0,
+        tags: {}
+      };
+    }
+
     // Detect form language
     const questions = await Question.find({ form_id: formId });
     const formLanguage = this.detectFormLanguage(questions);
@@ -435,7 +445,7 @@ RULES
    */
   public static async processComparativeAnalysis(
     groupedData: Record<string, any>,
-    entityType: "DEPARTMENT" | "COURSE" | "INSTRUCTOR",
+    entityType: "DEPARTMENT" | "COURSE" | "INSTRUCTOR" | "FACILITY",
     entityName: string,
     lang: "ar" | "en",
     userId: string
@@ -449,6 +459,8 @@ RULES
       rolePrompt = "act as a Curriculum Developer analyzing curriculum clarity, difficulty, and content updates across years.";
     } else if (entityType === "INSTRUCTOR") {
       rolePrompt = "act as an Academic HR Expert analyzing teaching style, communication, and fairness across years.";
+    } else if (entityType === "FACILITY") {
+      rolePrompt = "act as a Facility Management Consultant analyzing service availability, response times, safety standards, and overall visitor satisfaction.";
     }
 
     const prompt = `You are a strict, world-class ${rolePrompt.replace("act as a ", "")}.

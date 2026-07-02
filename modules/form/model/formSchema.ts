@@ -2,7 +2,7 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
 
 export type UserRole = 'DEPARTMENT' | 'COURSE' | 'HOD' | 'INSTRUCTOR' | 'STUDENT';
-export type SubjectRole = 'DEPARTMENT' | 'COURSE' | 'INSTRUCTOR' | 'HOD';
+export type SubjectRole = 'DEPARTMENT' | 'COURSE' | 'INSTRUCTOR' | 'HOD' | 'FACILITY';
 
 export interface IForm extends Document {
   title: string;
@@ -17,6 +17,7 @@ export interface IForm extends Document {
   category: 'GENERAL' | 'SPECIALIZED' | 'QUIZ';
   course_id?: Types.ObjectId;
   instructor_id?: Types.ObjectId;
+  facility_id?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -37,7 +38,7 @@ const formSchema = new Schema<IForm>({
 
   evaluator_roles: [{
     type: String,
-    enum: ['ADMIN', 'HOD', 'INSTRUCTOR', 'STUDENT'],
+    enum: ['ADMIN', 'HOD', 'INSTRUCTOR', 'STUDENT', 'GENERAL'],
     required: function (this: any): boolean {
       // مطلوب فقط لو الفورم متخصصة (تقييم)
       return this.category === 'SPECIALIZED';
@@ -46,7 +47,7 @@ const formSchema = new Schema<IForm>({
 
   subject_role: {
     type: String,
-    enum: ['DEPARTMENT', 'COURSE', 'INSTRUCTOR', 'HOD'],
+    enum: ['DEPARTMENT', 'COURSE', 'INSTRUCTOR', 'HOD', 'FACILITY'],
     required: function (this: any): boolean {
       // مطلوب فقط لو الفورم متخصصة (تقييم)
       return this.category === 'SPECIALIZED';
@@ -91,6 +92,13 @@ const formSchema = new Schema<IForm>({
     required: function (this: any): boolean {
       // إجباري فقط لو بنقيم دكتور بعينه
       return this.category === 'SPECIALIZED' && this.subject_role === 'INSTRUCTOR';
+    }
+  },
+  facility_id: {
+    type: Schema.Types.ObjectId,
+    ref: 'Facility',
+    required: function (this: any): boolean {
+      return this.category === 'SPECIALIZED' && this.subject_role === 'FACILITY';
     }
   },
 }, {
