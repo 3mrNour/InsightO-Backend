@@ -6,6 +6,8 @@
 
 import Task from './task.model.js';
 import TaskSubmission from '../taskSubmittion/taskSubmittion.model.js';
+import Course from '../course/course.model.js';
+import StudentProfile from '../profile/model/StudentProfile.js';
 import mongoose from 'mongoose';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -52,10 +54,51 @@ export interface TaskAnalyticsResult {
 export const TaskAnalyticsService = {
 
   /**
-   * Returns the full analytics payload in a single call.
+   * Returns the full analytics payload with hierarchical filtering.
    * All queries use MongoDB aggregation — no schema changes required.
    */
-  async getAnalytics(): Promise<TaskAnalyticsResult> {
+  async getAnalytics(options: { departmentId?: string; courseId?: string; taskId?: string } = {}): Promise<TaskAnalyticsResult> {
+    let targetTaskIds: mongoose.Types.ObjectId[] | undefined;
+    let expectedSubmissions = 0;
+
+    if (options.taskId) {
+      const task = await Task.findById(options.taskId).select('_id target');
+      if (task) {
+        targetTaskIds = [task._id as mongoose.Types.ObjectId];
+        if (task.target?.course_id) {
+          expectedSubmissions = await StudentProfile.countDocuments({ enrolledCourses: task.target.course_id });
+        }
+      }
+    } else if (options.courseId) {
+      const tasks = await Task.find({ "target.course_id": options.courseId }).select('_id');
+      targetTaskIds = tasks.map(t => t._id as mongoose.Types.ObjectId);
+      const enrolled = await StudentProfile.countDocuments({ enrolledCourses: options.courseId });
+      expectedSubmissions = enrolled * targetTaskIds.length;
+    } else if (options.departmentId) {
+      const courses = await Course.find({ departmentId: options.departmentId }).select('_id');
+      const courseIds = courses.map(c => c._id);
+      const tasks = await Task.find({ "target.course_id": { $in: courseIds } }).select('_id target.course_id');
+      targetTaskIds = tasks.map(t => t._id as mongoose.Types.ObjectId);
+      
+      let totalExpected = 0;
+      for (const courseId of courseIds) {
+        const enrolled = await StudentProfile.countDocuments({ enrolledCourses: courseId });
+        const tasksInCourse = tasks.filter(t => t.target?.course_id?.toString() === courseId.toString()).length;
+        totalExpected += (enrolled * tasksInCourse);
+      }
+      expectedSubmissions = totalExpected;
+    } else {
+      const allTasks = await Task.find().select('_id target.course_id');
+      const courses = await Course.find().select('_id');
+      let totalExpected = 0;
+      for (const course of courses) {
+        const enrolled = await StudentProfile.countDocuments({ enrolledCourses: course._id });
+        const tasksInCourse = allTasks.filter(t => t.target?.course_id?.toString() === course._id.toString()).length;
+        totalExpected += (enrolled * tasksInCourse);
+      }
+      expectedSubmissions = totalExpected;
+    }
+
     const [
       totalTasks,
       summary,
@@ -63,17 +106,17 @@ export const TaskAnalyticsService = {
       submissionsOverTime,
       tableRows,
     ] = await Promise.all([
-      TaskAnalyticsService._countTotalTasks(),
-      TaskAnalyticsService._getSubmissionSummary(),
-      TaskAnalyticsService._getSubmissionsPerStudent(),
-      TaskAnalyticsService._getSubmissionsOverTime(),
-      TaskAnalyticsService._getTableRows(),
+      TaskAnalyticsService._countTotalTasks(targetTaskIds),
+      TaskAnalyticsService._getSubmissionSummary(targetTaskIds),
+      TaskAnalyticsService._getSubmissionsPerStudent(targetTaskIds),
+      TaskAnalyticsService._getSubmissionsOverTime(targetTaskIds),
+      TaskAnalyticsService._getTableRows(targetTaskIds),
     ]);
 
     const submitted = summary.submittedCount;
-    const notSubmitted = Math.max(0, totalTasks - submitted);
+    const notSubmitted = Math.max(0, expectedSubmissions - submitted);
     const submissionRate =
-      totalTasks > 0 ? Math.round((submitted / totalTasks) * 100) : 0;
+      expectedSubmissions > 0 ? Math.round((submitted / expectedSubmissions) * 100) : 0;
 
     return {
       summary: {
@@ -96,25 +139,36 @@ export const TaskAnalyticsService = {
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
-  async _countTotalTasks(): Promise<number> {
+  async _countTotalTasks(targetTaskIds?: mongoose.Types.ObjectId[]): Promise<number> {
+    if (targetTaskIds) {
+      return targetTaskIds.length;
+    }
     return Task.countDocuments();
   },
 
-  async _getSubmissionSummary(): Promise<{ submittedCount: number }> {
-    // Count unique (task_id, submitter_id) pairs — each pair = one submission event
-    const result = await TaskSubmission.aggregate([
-      {
-        $group: {
-          _id: null,
-          submittedCount: { $sum: 1 },
-        },
+  async _getSubmissionSummary(targetTaskIds?: mongoose.Types.ObjectId[]): Promise<{ submittedCount: number }> {
+    const pipeline: any[] = [];
+    if (targetTaskIds) {
+      pipeline.push({ $match: { task_id: { $in: targetTaskIds } } });
+    }
+    pipeline.push({
+      $group: {
+        _id: null,
+        submittedCount: { $sum: 1 },
       },
-    ]);
+    });
+    
+    const result = await TaskSubmission.aggregate(pipeline);
     return result[0] ?? { submittedCount: 0 };
   },
 
-  async _getSubmissionsPerStudent(): Promise<StudentSubmissionStat[]> {
-    const result = await TaskSubmission.aggregate([
+  async _getSubmissionsPerStudent(targetTaskIds?: mongoose.Types.ObjectId[]): Promise<StudentSubmissionStat[]> {
+    const pipeline: any[] = [];
+    if (targetTaskIds) {
+      pipeline.push({ $match: { task_id: { $in: targetTaskIds } } });
+    }
+    
+    pipeline.push(...[
       // Group by submitter
       {
         $group: {
@@ -151,16 +205,22 @@ export const TaskAnalyticsService = {
       { $sort: { submittedCount: -1 } },
       { $limit: 20 }, // top-20 for the bar chart
     ]);
+    const result = await TaskSubmission.aggregate(pipeline);
     return result as StudentSubmissionStat[];
   },
 
-  async _getSubmissionsOverTime(): Promise<DailySubmissionStat[]> {
+  async _getSubmissionsOverTime(targetTaskIds?: mongoose.Types.ObjectId[]): Promise<DailySubmissionStat[]> {
     // Last 30 days only — keeps the line chart readable
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+    const matchStage: any = { createdAt: { $gte: thirtyDaysAgo } };
+    if (targetTaskIds) {
+      matchStage.task_id = { $in: targetTaskIds };
+    }
+
     const result = await TaskSubmission.aggregate([
-      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+      { $match: matchStage },
       {
         $group: {
           _id: {
@@ -181,9 +241,13 @@ export const TaskAnalyticsService = {
     return result as DailySubmissionStat[];
   },
 
-  async _getTableRows(): Promise<SubmissionTableRow[]> {
-    // Join TaskSubmission ↔ Task ↔ User
-    const result = await TaskSubmission.aggregate([
+  async _getTableRows(targetTaskIds?: mongoose.Types.ObjectId[]): Promise<SubmissionTableRow[]> {
+    const pipeline: any[] = [];
+    if (targetTaskIds) {
+      pipeline.push({ $match: { task_id: { $in: targetTaskIds } } });
+    }
+
+    pipeline.push(...[
       // Bring in Task data
       {
         $lookup: {
@@ -228,6 +292,7 @@ export const TaskAnalyticsService = {
       { $sort: { submissionDate: -1 } },
       { $limit: 200 }, // practical cap for the table
     ]);
+    const result = await TaskSubmission.aggregate(pipeline);
     return result as SubmissionTableRow[];
   },
 };

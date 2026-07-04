@@ -161,3 +161,24 @@ export const getDepartmentInsights = async (req: Request, res: Response, next: N
     next(error);
   }
 };
+
+import { DepartmentAnalyticsService } from '../departmentAnalytics.service.js';
+
+export const getGlobalAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const analytics = await DepartmentAnalyticsService.getGlobalAnalytics();
+    res.status(200).json({ status: 'success', data: analytics });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getDepartmentAnalytics = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const analytics = await DepartmentAnalyticsService.getDepartmentSpecificAnalytics(id);
+    res.status(200).json({ status: 'success', data: analytics });
+  } catch (error) {
+    next(error);
+  }
+};
