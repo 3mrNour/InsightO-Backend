@@ -30,6 +30,12 @@ const fileConfigSchema = z.object({
   max_size: z.number().int().positive("Max size must be positive")
 });
 
+// ─── Text Validation Schema ──────────────────────────────────────────────────
+
+const textValidationSchema = z.object({
+  type: z.enum(["text", "email", "number", "phone", "url"])
+});
+
 // ─── Create Question Schema ────────────────────────────────────────────────────
 
 export const createQuestionSchema = z.object({
@@ -50,6 +56,8 @@ export const createQuestionSchema = z.object({
     scale: scaleSchema.optional(),
 
     file_config: fileConfigSchema.optional(),
+    
+    text_validation: textValidationSchema.optional(),
 
     ai_tag: z.string().optional(),
 
@@ -107,6 +115,15 @@ export const createQuestionSchema = z.object({
           code: z.ZodIssueCode.custom,
           message: "File config only allowed for file type",
           path: ["file_config"]
+        });
+      }
+      
+      // 🎯 text_validation only allowed for short_text
+      if (data.type !== "short_text" && data.text_validation) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Text validation only allowed for short_text",
+          path: ["text_validation"]
         });
       }
     })

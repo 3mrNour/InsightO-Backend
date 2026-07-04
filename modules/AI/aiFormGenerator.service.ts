@@ -28,7 +28,8 @@ SCHEMA FOR EACH QUESTION:
   "type": "short_text | long_text | linear_scale | multiple_choice | checkbox | file",
   "required": true or false,
   "options": ["Option 1", "Option 2"] (ONLY required if type is "multiple_choice" or "checkbox"),
-  "scale": {{ "min": 1, "max": 5 }} (ONLY required if type is "linear_scale")
+  "scale": {{ "min": 1, "max": 5 }} (ONLY required if type is "linear_scale"),
+  "text_validation": {{ "type": "text | email | phone | number | url" }} (ONLY allowed if type is "short_text")
 }}
 
 Output your JSON now:
@@ -72,3 +73,72 @@ export async function generateFormQuestions(prompt: string, userId: string = "an
     questions: parsed.questions
   };
 }
+
+// Helper to shuffle array
+function shuffleArray<T>(array: T[]): T[] {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+export async function generateFormQuestionsFromFile(
+  filePath: string,
+  fileName: string,
+  prompt: string,
+  userId: string = "anonymous"
+): Promise<{ title: string; description: string; questions: any[] }> {
+  let fullText = "";
+  const ext = fileName.split(".").pop()?.toLowerCase();
+
+  if (ext === "pdf") {
+    const { PDFLoader } = await import("@langchain/community/document_loaders/fs/pdf");
+    const loader = new PDFLoader(filePath);
+    const docs = await loader.load();
+    fullText = docs.map((d) => d.pageContent).join("\n");
+  } else if (ext === "pptx" || ext === "ppt") {
+    const officeParser = (await import("officeparser"));
+    const parsed = await officeParser.parseOffice(filePath);
+    fullText = typeof parsed === "string" ? parsed : (parsed?.text || JSON.stringify(parsed) || "");
+  } else {
+    // Attempt fallback raw read for txt, etc.
+    const fs = await import("fs/promises");
+    fullText = await fs.readFile(filePath, "utf8");
+  }
+
+  // Chunk the text to handle huge files
+  const { RecursiveCharacterTextSplitter } = await import("@langchain/textsplitters");
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize: 1000,
+    chunkOverlap: 100,
+  });
+  
+  if (typeof fullText !== "string") {
+    fullText = String(fullText || "");
+  }
+  
+  const chunks = await splitter.createDocuments([fullText]);
+  
+  // Diverse sampling: randomly pick up to 15 chunks to stay well within token limits
+  // but get a broad coverage of the document.
+  let selectedChunks = chunks;
+  if (chunks.length > 15) {
+    selectedChunks = shuffleArray([...chunks]).slice(0, 15);
+  }
+  
+  const excerptText = selectedChunks.map((c) => c.pageContent).join("\n\n---\n\n");
+
+  const combinedPrompt = `
+You are generating a quiz/form based on an uploaded document.
+${prompt ? `USER SPECIAL INSTRUCTIONS:\n${prompt}\n` : ""}
+DOCUMENT EXCERPTS (Randomly sampled from the uploaded file):
+${excerptText}
+
+Generate a comprehensive quiz covering the information provided in the excerpts above. 
+DO NOT hallucinate or include information outside of these excerpts.
+`;
+
+  return generateFormQuestions(combinedPrompt, userId);
+}
+

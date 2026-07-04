@@ -14,6 +14,8 @@ const ALLOWED_MIME_TYPES = [
   "image/png",
   "image/jpeg",
   "application/pdf",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-powerpoint",
   "text/plain",
 ];
 
@@ -68,6 +70,8 @@ const fileFilter = (
     ".jpg",
     ".jpeg",
     ".pdf",
+    ".pptx",
+    ".ppt",
     ".txt",
     ".js",
     ".ts",
