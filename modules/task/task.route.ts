@@ -12,6 +12,7 @@ import { protect, authorizeRoles } from '../../middlewares/authMiddleware.js';
 // import { validate } from '../../middlewares/validateMiddleware.js';
 // import { createTaskSchema, updateTaskSchema } from './task.validat.js'; 
 import { upload } from '../../utils/upload/multerConfig.js';
+import { getTaskAnalytics } from './taskAnalytics.controller.js';
 
 const router = Router();
 
@@ -41,6 +42,14 @@ router.route('/')
     // validate(createTaskSchema), 
     createTask
   );
+
+/**
+ * GET /api/tasks/analytics
+ * Protected: ADMIN and INSTRUCTOR only
+ * IMPORTANT: Must be declared BEFORE /:id so "analytics" is not captured as an id param
+ */
+router.route('/analytics')
+  .get(authorizeRoles('ADMIN', 'INSTRUCTOR'), getTaskAnalytics);
 
 /**
  * GET /api/tasks/:id
