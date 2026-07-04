@@ -390,6 +390,13 @@ export const getProfile = async (req: Request, res: Response, next: NextFunction
     if (profileData) {
       userData.departmentId = profileData.departmentId;
       if (profileData.academicYear) userData.academicYear = profileData.academicYear;
+      // Provide departmentIds array for HOD multi-department support
+      if (user.role === UserSchema.HOD) {
+        const deptIds = (profileData.departmentIds && profileData.departmentIds.length > 0)
+          ? profileData.departmentIds
+          : (profileData.departmentId ? [profileData.departmentId._id || profileData.departmentId] : []);
+        userData.departmentIds = deptIds;
+      }
     }
 
     res.status(200).json({ status: 'success', user: userData });

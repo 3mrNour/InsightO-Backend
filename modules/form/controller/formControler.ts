@@ -57,11 +57,16 @@ export const getAllForms = async (req: Request, res: Response, next: NextFunctio
       query = { is_active: true, evaluator_roles: "STUDENT" };
     } else if (user.role === "HOD") {
       const hodProfile = await HODProfile.findOne({ userId: user._id });
-      if (hodProfile && hodProfile.departmentIds && hodProfile.departmentIds.length > 0) {
+      // Support both departmentIds array AND legacy departmentId
+      const deptIds = (hodProfile?.departmentIds && hodProfile.departmentIds.length > 0)
+        ? hodProfile.departmentIds
+        : (hodProfile?.departmentId ? [hodProfile.departmentId] : []);
+
+      if (deptIds.length > 0) {
         query = {
           $or: [
             { creator_id: user._id },
-            { department_id: { $in: hodProfile.departmentIds } }
+            { department_id: { $in: deptIds } }
           ]
         };
       } else {

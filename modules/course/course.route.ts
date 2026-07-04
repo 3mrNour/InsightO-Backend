@@ -57,6 +57,7 @@ router
   /**
    * DELETE /api/courses/:id
    * الوصول: ADMIN و HOD فقط
+   */
   .delete(authorizeRoles("ADMIN", "HOD"), deleteCourse);
 
 /**

@@ -288,10 +288,17 @@ export const listAdminUsers = async (req: Request, res: Response, next: NextFunc
       usersQuery = { _id: { $in: studentUserIds } };
     } else if (userRole === 'HOD') {
       const hodProfile = await HODProfile.findOne({ userId });
-      if (!hodProfile || !hodProfile.departmentIds || hodProfile.departmentIds.length === 0) return next(new AppError('HOD profile not found or no departments assigned', 404));
+      if (!hodProfile) return next(new AppError('HOD profile not found', 404));
 
-      const studentProfiles = await StudentProfile.find({ departmentId: { $in: hodProfile.departmentIds } }).select('userId');
-      const instructorProfiles = await InstructorProfile.find({ departmentId: { $in: hodProfile.departmentIds } }).select('userId');
+      // Support both departmentIds array AND legacy departmentId field
+      const deptIds = (hodProfile.departmentIds && hodProfile.departmentIds.length > 0)
+        ? hodProfile.departmentIds
+        : (hodProfile.departmentId ? [hodProfile.departmentId] : []);
+
+      if (deptIds.length === 0) return next(new AppError('No departments assigned to HOD', 404));
+
+      const studentProfiles = await StudentProfile.find({ departmentId: { $in: deptIds } }).select('userId');
+      const instructorProfiles = await InstructorProfile.find({ departmentId: { $in: deptIds } }).select('userId');
       
       const userIds = [
         ...studentProfiles.map(p => p.userId),
