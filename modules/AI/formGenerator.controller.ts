@@ -57,3 +57,52 @@ if (!userId) {
   }
 };
 
+import fs from "fs/promises";
+import { generateFormQuestionsFromFile } from "./aiFormGenerator.service.js";
+
+export const generateAIFormFromFileController = async (req: Request, res: Response): Promise<Response | void> => {
+  try {
+    const file = req.file;
+    const prompt = req.body.prompt || "";
+    
+    if (!file) {
+      return res.status(400).json({
+        message: "Bad Request",
+        error: "File is required",
+      });
+    }
+
+    const userId = (req as any).user?._id?.toString();
+    if (!userId) {
+      throw new Error("User ID is required for AI usage tracking");
+    }
+
+    const questions = await generateFormQuestionsFromFile(file.path, file.originalname, prompt, userId);
+
+    // Clean up file
+    await fs.unlink(file.path).catch(console.error);
+
+    return res.status(200).json({
+      message: "Form generated successfully from file",
+      data: questions,
+    });
+  } catch (error: any) {
+    // Clean up file in case of error
+    if (req.file) {
+      await fs.unlink(req.file.path).catch(console.error);
+    }
+    
+    if (error instanceof AppError && error.statusCode === 429) {
+      return res.status(429).json({
+        message: "Token limit exceeded",
+        error: error.message
+      });
+    }
+
+    console.error("Form Generator From File Controller Error:", error);
+    return res.status(500).json({
+      message: "Failed to generate form from file",
+      error: error.message || "An unknown error occurred",
+    });
+  }
+};

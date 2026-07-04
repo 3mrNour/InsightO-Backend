@@ -7,6 +7,7 @@ import Question from "../question/models/Question_Schema.js";
 import { AppError } from "../../utils/AppError.js";
 import { asyncWrap } from "../../middlewares/asyncWrap.js";
 import Form from "../form/model/formSchema.js";
+import { parsePhoneNumberFromString } from 'libphonenumber-js/max';
 
 /**
  * Validates an answer's value against its question's configuration.
@@ -26,6 +27,31 @@ const validateAnswerValue = (question: any, value: any) => {
   // 2. Data type validation
   switch (question.type) {
     case "short_text":
+      if (typeof value !== "string") {
+        throw new AppError(`Answer for "${question.label}" must be text.`, 400);
+      }
+      if (question.text_validation) {
+        if (question.text_validation.type === 'email') {
+          const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+          if (!emailRegex.test(value)) {
+            throw new AppError(`Answer for "${question.label}" must be a valid email format.`, 400);
+          }
+        }
+        if (question.text_validation.type === 'phone') {
+          const phoneNumber = parsePhoneNumberFromString(value);
+          if (!phoneNumber || !phoneNumber.isValid()) {
+            throw new AppError(`Answer for "${question.label}" must be a valid phone number.`, 400);
+          }
+        }
+        if (question.text_validation.type === 'url') {
+          const urlRegex = /^https?:\/\/.+/;
+          if (!urlRegex.test(value)) {
+            throw new AppError(`Answer for "${question.label}" must be a valid URL.`, 400);
+          }
+        }
+      }
+      break;
+
     case "long_text":
       if (typeof value !== "string") {
         throw new AppError(`Answer for "${question.label}" must be text.`, 400);
@@ -94,7 +120,7 @@ export const createSubmission = asyncWrap(async (req: Request, res: Response, ne
   // fetch form with populated questions
   const form = await Form.findById(formId).populate({
     path: 'questions',
-    select: 'label type required options ai_tag order'
+    select: 'label type required options ai_tag order file_config scale text_validation'
   });
   if (!form) return next(new AppError("Form not found", 404));
 
@@ -150,11 +176,11 @@ export const createSubmission = asyncWrap(async (req: Request, res: Response, ne
       select: 'title description label',
       populate: {
         path: 'questions',
-        select: 'label type required options ai_tag order'
+        select: 'label type required options ai_tag order file_config scale text_validation'
       }
     }).populate({
       path: 'answers.question_id',
-      select: 'label type required options'
+      select: 'label type required options file_config scale text_validation'
     });
 
     res.status(201).json({
@@ -243,7 +269,7 @@ export const createPublicSubmission = asyncWrap(async (req: Request, res: Respon
       select: 'title description label',
     }).populate({
       path: 'answers.question_id',
-      select: 'label type required options'
+      select: 'label type required options file_config scale text_validation'
     });
 
     res.status(201).json({

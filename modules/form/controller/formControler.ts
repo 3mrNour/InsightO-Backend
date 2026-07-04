@@ -88,7 +88,7 @@ export const getAllForms = async (req: Request, res: Response, next: NextFunctio
 
     const forms = await Form.find(query).populate({
       path: 'questions',
-      select: 'label title description type required options ai_tag order'
+      select: 'label title description type required options ai_tag order file_config scale text_validation'
     }).populate({
       path: 'creator_id',
       select: 'name email'
@@ -112,7 +112,7 @@ export const getFormById = async (req: Request, res: Response, next: NextFunctio
     const form = await Form.findById(req.params.id)
       .populate({
         path: 'questions',
-        select: 'label title description type required options ai_tag order'
+        select: 'label title description type required options ai_tag order file_config scale text_validation'
       }).populate({
         path: 'creator_id',
         select: 'name email'
@@ -234,7 +234,7 @@ export const getPublicFormById = async (req: Request, res: Response, next: NextF
     const form = await Form.findById(req.params.id)
       .populate({
         path: 'questions',
-        select: 'label title description type required options ai_tag order'
+        select: 'label title description type required options ai_tag order file_config scale text_validation'
       }).populate({
         path: 'creator_id',
         select: 'name email'

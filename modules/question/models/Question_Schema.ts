@@ -24,6 +24,12 @@ export interface IScale {
   max: number;
 }
 
+// ─── Text Validation Config Interface ───────────────────────────────────────────
+
+export interface ITextValidation {
+  type: "text" | "email" | "number" | "phone" | "url";
+}
+
 // ─── Question Interface ───────────────────────────────────────────────────────
 
 export interface IQuestion extends Document {
@@ -36,6 +42,7 @@ export interface IQuestion extends Document {
   order: number;
   file_config?: IFileConfig;
   scale?: IScale;
+  text_validation?: ITextValidation;
 }
 
 // ─── Sub-Schema for File Config ───────────────────────────────────────────────
@@ -109,6 +116,12 @@ const questionSchema = new Schema<IQuestion>(
     },
     scale: {
       type: scaleSchema,
+      required: false,
+    },
+    text_validation: {
+      type: new Schema<ITextValidation>({
+        type: { type: String, enum: ["text", "email", "number", "phone", "url"], default: "text" }
+      }, { _id: false }),
       required: false,
     },
   },

@@ -15,6 +15,7 @@ import courseRoutes from "./modules/course/course.route.js";
 import studentRoutes from "./modules/student/student.route.js";
 import cycleRoutes from "./modules/cycle/cycle.route.js";
 import facilityRoutes from "./modules/facility/facility.route.js";
+import adminRoutes from "./modules/admin/routes/admin.route.js";
 import ingestionroute from "./modules/AI/ingestion.route.js";
 import formGeneratorRoute from "./modules/AI/formGenerator.route.js";
 import aiUsageRoute from "./modules/AI/aiUsage.route.js";
@@ -59,6 +60,7 @@ export function createApp() {
   // Admin dashboard user management
   app.use("/api/admin/users", adminUserRoutes);
   app.use("/api/admin/departments", departmentRoutes);
+  app.use("/api/admin", adminRoutes);
 
   // User profile
   app.use("/api/users", profileRoutes);
