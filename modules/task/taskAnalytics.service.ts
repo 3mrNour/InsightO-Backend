@@ -271,6 +271,10 @@ export const TaskAnalyticsService = {
       {
         $project: {
           _id: 0,
+          submissionId: '$_id',
+          taskId: '$task_id',
+          courseId: '$task.target.course_id',
+          departmentId: '$task.target.department_id',
           studentName: {
             $concat: [
               { $ifNull: ['$student.firstName', ''] },
