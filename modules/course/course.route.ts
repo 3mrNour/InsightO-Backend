@@ -8,6 +8,7 @@ import {
   updateCourse,
   deleteCourse,
   getCourseInsights,
+  getCourseAnalytics,
 } from "./course.controller.js";
 import { protect, authorizeRoles } from "../../middlewares/authMiddleware.js";
 import { validate } from '../../middlewares/validateMiddleware.js';
@@ -66,5 +67,12 @@ router
 router
   .route("/:id/insights")
   .get(getCourseInsights);
+
+/**
+ * GET /api/courses/:id/analytics
+ */
+router
+  .route("/:id/analytics")
+  .get(getCourseAnalytics);
 
 export default router;

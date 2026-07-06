@@ -351,3 +351,19 @@ export const getCourseInsights = asyncWrap(async (
     }
   });
 });
+
+import { CourseAnalyticsService } from './courseAnalytics.service.js';
+
+export const getCourseAnalytics = asyncWrap(async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  const course = await Course.findById(req.params.id);
+  if (!course) {
+    return next(new AppError("Course not found", 404));
+  }
+
+  const analytics = await CourseAnalyticsService.getCourseAnalytics(req.params.id);
+  res.status(200).json({ status: "success", data: analytics });
+});
