@@ -50,10 +50,23 @@ export async function generateFormQuestions(prompt: string, userId: string = "an
   const response = await invokeWithUsageTracking(llm, userId, formattedPrompt, "generate-form");
 
   const raw = response.content.toString().trim();
-  const jsonString = raw
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/, "")
-    .trim();
+  
+  let jsonString = raw;
+  const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  
+  if (jsonMatch) {
+    jsonString = jsonMatch[1].trim();
+  } else {
+    // Fallback: Try to extract text between the first '{' and the last '}'
+    const firstBrace = raw.indexOf('{');
+    const lastBrace = raw.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+      jsonString = raw.substring(firstBrace, lastBrace + 1);
+    } else {
+      // Last resort cleanup
+      jsonString = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+    }
+  }
 
   let parsed: any;
   try {
