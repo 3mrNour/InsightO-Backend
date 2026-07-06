@@ -124,7 +124,22 @@ export class FormAIService {
     // Build question → ai_tag map
     const questions = await Question.find({ form_id: formId });
     const questionTagMap = new Map<string, string>();
+    
+    // Keywords for fields to exclude from AI analysis
+    const excludeKeywords = ['name', 'الاسم', 'phone', 'هاتف', 'رقم', 'email', 'بريد'];
+
     for (const q of questions) {
+      // 1. Exclude based on text validation type
+      if (q.text_validation?.type === 'phone' || q.text_validation?.type === 'email' || q.text_validation?.type === 'url') {
+        continue;
+      }
+      
+      // 2. Exclude based on label keywords
+      const labelLower = (q.label || '').toLowerCase();
+      if (excludeKeywords.some(keyword => labelLower.includes(keyword))) {
+        continue;
+      }
+
       if (q.ai_tag?.trim()) {
         questionTagMap.set(q._id.toString(), q.ai_tag.trim().toLowerCase());
       } else {
@@ -210,16 +225,14 @@ export class FormAIService {
       const truncatedAnswers = answers.map((a) => a.slice(0, 500));
       const context = truncatedAnswers.join("\n---\n");
 
+      const targetLang = lang === "ar" ? "Arabic" : "English";
       const prompt = `IMPORTANT:
-- If lang = "ar" → Return ALL output in Arabic
-- If lang = "en" → Return ALL output in English
-- DO NOT mix languages
+You MUST output your ENTIRE response strictly in ${targetLang}.
+DO NOT mix languages.
 
-Active language mode for this response: ${lang === "ar" ? "Arabic (ar)" : "English (en)"}
+You are an elite, highly experienced Strategic Analyst integrated into a Form Results Dashboard UI.
 
-You are an AI integrated into a Form Results Dashboard UI.
-
-You MUST read and understand the grouped form results carefully.
+You MUST read and deeply analyze the grouped form results carefully. Do NOT provide generic feedback (e.g., "The responses are good"). Your job is to extract profound insights, identify the true root causes of any dissatisfaction, and provide concrete, step-by-step action plans.
 
 Category: "${tag}"
 
@@ -229,35 +242,33 @@ ${context}
 ---------------------------------------
 TASK
 ---------------------------------------
-Analyze these responses collectively:
-- detect patterns
-- evaluate quality and consistency
-- identify strengths and weaknesses
+Deeply analyze these responses collectively:
+1. Detect recurring themes, systemic friction points, and overarching patterns.
+2. Identify the ROOT CAUSES of any negative sentiment or operational bottlenecks.
+3. Formulate a highly specific, practical, and impactful "Action Plan" to solve the identified weaknesses.
 
 ---------------------------------------
 OUTPUT FORMAT (STRICT JSON ONLY)
 ---------------------------------------
 {
   "tag": "${tag}",
-  "summary": "2-3 sentence concise summary in the target language",
-  "strengths": ["clear actionable strength in the target language"],
-  "weaknesses": ["clear actionable weakness in the target language"],
-  "action_items": ["practical improvement action in the target language"],
+  "summary": "3-4 sentences of deep analytical summary in ${targetLang}. Do not just state the obvious; explain the 'why' behind the responses.",
+  "strengths": ["Clear, context-specific strength in ${targetLang} (no generic statements)"],
+  "weaknesses": ["Clear, root-cause level weakness in ${targetLang}"],
+  "action_items": ["Actionable, step-by-step solution or operational improvement in ${targetLang}"],
   "score": number (0-100)
 }
 
 ---------------------------------------
 RULES
 ---------------------------------------
-- DO NOT return anything except JSON
-- DO NOT use markdown
-- Keep output concise (optimize tokens)
-- Score must reflect actual quality (not random)
-- If responses are weak → lower score
+- Return ONLY JSON (no text, no markdown)
+- Keep output concise but highly valuable (optimize tokens)
+- Score must reflect actual operational health (not random). Be strict.
+- If responses indicate severe issues → lower score
 - If mixed → medium score
-- If strong → high score
-- Infer evaluation even if unclear
-- Keep the JSON keys ("tag", "summary", "strengths", "weaknesses", "action_items", "score") in English, but output all string values in the target language.
+- If exceptionally strong → high score
+- Keep the JSON keys in English, but output all string values in ${targetLang}.
 `;
       // ── Token guard ─────────────────────────────────────────────────────────
       enforceTokenLimit(prompt);
@@ -364,39 +375,37 @@ RULES
 
     // 2. Build cross-category context
     const combinedData = JSON.stringify(tagsResults, null, 2);
+    const targetLang = formLanguage === "ar" ? "Arabic" : "English";
     const globalPrompt = `IMPORTANT:
-- If lang = "ar" → Return ALL output in Arabic
-- If lang = "en" → Return ALL output in English
-- DO NOT mix languages
+You MUST output your ENTIRE response strictly in ${targetLang}.
+DO NOT mix languages.
 
-Active language mode for this response: ${formLanguage === "ar" ? "Arabic (ar)" : "English (en)"}
+You are a world-class Executive Operations Consultant analyzing organizational feedback data across multiple categories.
 
-You are analyzing full form feedback across multiple categories.
-
-Data:
+Data (Results from individual category analysis):
 ${combinedData}
 
 ---------------------------------------
 TASK
 ---------------------------------------
-- Identify cross-patterns across all categories
-- Detect the most critical issues affecting performance
-- Highlight repeated weaknesses across tags
-- Provide practical, high-impact recommendations
+- Synthesize cross-category data to find systemic organizational bottlenecks.
+- Detect the most critical, high-impact issues affecting overall performance.
+- Provide a robust executive summary that tells the story of the overall health.
+- Deliver a prioritized, highly strategic roadmap (action plan) to resolve the major problems. Do NOT give generic advice.
 
 ---------------------------------------
 OUTPUT (STRICT JSON ONLY)
 ---------------------------------------
 {
   "overall": {
-    "score": number (0-100),
-    "summary": "2-3 sentence overall evaluation in the target language"
+    "score": number (0-100, must be a strict reflection of systemic health),
+    "summary": "3-4 sentence profound executive evaluation in ${targetLang}"
   },
   "key_problems": [
-    "clear major problem derived from multiple tags in the target language"
+    "Specific, root-cause level major problem derived from multiple tags in ${targetLang}"
   ],
   "recommendations": [
-    "practical, actionable improvement recommendation in the target language"
+    "Highly strategic, step-by-step actionable recommendation to solve the systemic issues in ${targetLang}"
   ]
 }
 
@@ -404,12 +413,11 @@ OUTPUT (STRICT JSON ONLY)
 RULES
 ---------------------------------------
 - Return ONLY JSON (no text, no markdown)
-- Be concise and direct
+- Be deeply analytical, direct, and professional
 - Do NOT hallucinate data not present in tags
-- Problems must be cross-category (not single tag)
-- Recommendations must directly solve the problems
-- Score must reflect overall real performance
-- Keep the JSON keys ("overall", "score", "summary", "key_problems", "recommendations") in English, but output all string values in the target language.
+- Problems must be cross-category or highly critical
+- Recommendations must be concrete action plans, not just observations
+- Keep the JSON keys in English, but output all string values in ${targetLang}.
 `;
 
     // ── Token guard ──────────────────────────────────────────────────────────

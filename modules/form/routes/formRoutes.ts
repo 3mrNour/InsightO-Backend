@@ -62,7 +62,6 @@ router.post(
 // Get Public Form
 router.get(
   "/public/:id",
-   authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"),
   getPublicFormById
 );
 

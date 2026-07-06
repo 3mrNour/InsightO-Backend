@@ -54,7 +54,13 @@ export const getAllForms = async (req: Request, res: Response, next: NextFunctio
     let query: any = {};
 
     if (user.role === "STUDENT") {
-      query = { is_active: true, evaluator_roles: "STUDENT" };
+      query = { 
+        is_active: true, 
+        $or: [
+          { evaluator_roles: "STUDENT" },
+          { subject_role: "FACILITY" }
+        ] 
+      };
     } else if (user.role === "HOD") {
       const hodProfile = await HODProfile.findOne({ userId: user._id });
       // Support both departmentIds array AND legacy departmentId
@@ -152,8 +158,7 @@ export const getFormById = async (req: Request, res: Response, next: NextFunctio
       return next(new AppError("Form is not active", 403));
     }
 
-    // 👈 التعديل الأول: تغييرها لـ let عشان نقدر نعدل قيمتها
-    let isAllowed = isCreator || isAdmin || isTaskTarget || (form.is_active && isEvaluator);
+    let isAllowed = isCreator || isAdmin || isTaskTarget || (form.is_active && isEvaluator) || (form.is_active && form.subject_role === 'FACILITY');
 
     // 👈 التعديل الثاني: استثناء صريح لدكاترة الـ QUIZ عشان الـ 403 تختفي
     if (form.category === 'QUIZ' && ["ADMIN", "HOD", "INSTRUCTOR"].includes(user.role)) {
