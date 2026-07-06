@@ -70,7 +70,7 @@ router.get(
 router.get(
   "/",
   protect,
-  authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"),
+  authorizeRoles("ADMIN", "HOD", "INSTRUCTOR", "STUDENT"),
   getAllForms
 );
 
@@ -78,7 +78,7 @@ router.get(
 router.get(
   "/:id",
   protect,
-  authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"),
+  authorizeRoles("ADMIN", "HOD", "INSTRUCTOR", "STUDENT"),
   getFormById
 );
 
