@@ -101,6 +101,15 @@ export const getAllForms = async (req: Request, res: Response, next: NextFunctio
     }).populate({
       path: 'facility_id',
       select: 'name'
+    }).populate({
+      path: 'course_id',
+      select: 'name code'
+    }).populate({
+      path: 'department_id',
+      select: 'name code'
+    }).populate({
+      path: 'instructor_id',
+      select: 'firstName lastName email'
     });
     res.json({
       status: "success",
