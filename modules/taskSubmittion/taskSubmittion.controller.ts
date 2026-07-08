@@ -9,6 +9,7 @@ import { gradeSubmission } from "../AI/aiGrader.service.js";
 import { Chunk } from "../AI/chunk.model.js";
 import mongoose from "mongoose";
 import { IngestionService } from "../AI/ingestion.service.js";
+import { AIFactory } from "../../services/aiProvider.factory.js";
 export const submitTask = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
   const { content, attachments, form_answers } = req.body;
   const taskId = req.params.taskId;
@@ -72,18 +73,25 @@ export const submitTask = asyncWrap(async (req: Request, res: Response, next: Ne
         }
       }
 
-      // 1. السحر كله هنا: سحب الـ Chunks الجاهزة من الداتابيز!
-      // بنجيب الـ Chunks الخاصة بالتاسك أو بالتسليم ده مباشرة
-      const chunks = await Chunk.find({
+      // 1. Fetch chunks dynamically from the correct AI provider collection
+      const { provider } = AIFactory.getEmbeddings();
+      const collectionName = provider === "openai" ? "chunks_openai" : "chunks_ollama";
+      
+      const chunks = await mongoose.connection.db?.collection(collectionName).find({
         $or: [
-          { taskId: taskId.toString() },
-          { submissionId: submission._id.toString() } // لو إنت رابط الـ Chunks برقم التسليم
+          // Match student's uploaded submission chunks
+          { "metadata.submissionId": submission._id.toString() },
+          { submissionId: submission._id.toString() },
+          
+          // Match instructor's task attachments (they shouldn't have a submissionId)
+          { "metadata.taskId": taskId.toString(), "metadata.submissionId": { $exists: false } },
+          { taskId: taskId.toString(), submissionId: { $exists: false } }
         ]
-      });
+      }).toArray();
 
       let chunkText = "";
       if (chunks && chunks.length > 0) {
-        chunkText = chunks.map(c => c.text).join("\n\n");
+        chunkText = chunks.map(c => c.text || c.pageContent || "").join("\n\n");
       }
 
       // 2. لو الطالب رافع ملف (Attachments).. هنخلي الـ AI يقرأ الـ Chunks مباشرة! (ولا كأن فيه URL)
@@ -195,8 +203,8 @@ export const finalizeGrade = asyncWrap(async (req: Request, res: Response, next:
 
   const task = submission.task_id as any;
 
-  // التأكد إن اللي بيقيم هو صاحب التاسك أو أدمن
-  if (task.creator_id.toString() !== userId.toString() && user.role !== "ADMIN") {
+  // التأكد إن اللي بيقيم هو صاحب التاسك أو أدمن أو HOD
+  if (task.creator_id.toString() !== userId.toString() && user.role !== "ADMIN" && user.role !== "HOD") {
     return next(new AppError("Not authorized to grade this submission", 403));
   }
 
@@ -231,5 +239,124 @@ export const getMySubmissions = asyncWrap(async (req: Request, res: Response, ne
     status: "success",
     count: submissions.length,
     data: { submissions }
+  });
+});
+
+// 5. On-Demand AI Grading Trigger
+export const evaluateSubmissionAI = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
+  const { submissionId } = req.params;
+  const user = (req as any).user;
+  const userId = user.id || user._id;
+
+  const submission = await TaskSubmission.findById(submissionId);
+  if (!submission) return next(new AppError("Submission not found", 404));
+
+  const task = await Task.findById(submission.task_id);
+  if (!task) return next(new AppError("Task not found", 404));
+
+  // Auth is handled by route-level authorizeRoles(ADMIN, HOD, INSTRUCTOR) middleware.
+  // No additional creator check needed here.
+
+  let textToGrade = submission.content || "";
+  let rubricToUse = task.ai_grading_rubric || "";
+
+  // 0. Processing Attachments via IngestionService
+  if (submission.attachments && submission.attachments.length > 0) {
+    for (const attachment of submission.attachments) {
+      if (attachment.url) {
+        try {
+          await IngestionService.processAndStore({
+            url: attachment.url,
+            metadata: {
+              taskId: task._id.toString(),
+              submissionId: submission._id.toString(),
+              source: "student_attachment",
+              fileName: attachment.fileName
+            }
+          });
+        } catch (err: any) {
+          console.error(`[evaluateSubmissionAI] Failed to ingest attachment ${attachment.url}:`, err?.message ?? err);
+        }
+      }
+    }
+  }
+
+  // 1. Fetch chunks dynamically from the correct AI provider collection
+  const { provider } = AIFactory.getEmbeddings();
+  const collectionName = provider === "openai" ? "chunks_openai" : "chunks_ollama";
+  
+  const chunks = await mongoose.connection.db?.collection(collectionName).find({
+    $or: [
+      { "metadata.submissionId": submission._id.toString() },
+      { submissionId: submission._id.toString() },
+      { "metadata.taskId": task._id.toString(), "metadata.submissionId": { $exists: false } },
+      { taskId: task._id.toString(), submissionId: { $exists: false } }
+    ]
+  }).toArray();
+
+  let chunkText = "";
+  if (chunks && chunks.length > 0) {
+    chunkText = chunks.map(c => c.text || c.pageContent || "").join("\n\n");
+  }
+
+  // 2. Format content
+  if (!textToGrade.trim() && submission.attachments && submission.attachments.length > 0) {
+    textToGrade = chunkText ? `[VECTORIZED CHUNKS CONTENT]:\n${chunkText}` : "// No chunks processed yet.";
+    chunkText = ""; 
+  } else if (chunkText) {
+    rubricToUse = rubricToUse ? `${rubricToUse}\n\n[CONTEXT PROVIDED]:\n${chunkText}` : chunkText;
+  }
+
+  // 4. Formatting form_answers
+  if (submission.form_answers && Array.isArray(submission.form_answers) && submission.form_answers.length > 0) {
+    const form = await mongoose.model('Form').findById(task.form_id).populate('questions');
+    const formattedAnswers = submission.form_answers.map((ans: any, idx: number) => {
+      let qLabel = `Question ${idx + 1}`;
+      if (form && form.questions) {
+        const matchedQ = form.questions.find((q: any) => String(q._id) === String(ans.question_id));
+        if (matchedQ) qLabel = matchedQ.label;
+      }
+      const val = Array.isArray(ans.value) ? ans.value.join(', ') : String(ans.value);
+      return `Question: ${qLabel}\nAnswer: ${val}`;
+    }).join("\n\n---\n\n");
+
+    textToGrade = textToGrade ? `${textToGrade}\n\n[QUIZ RESPONSES]\n${formattedAnswers}` : formattedAnswers;
+  }
+
+  if (!textToGrade.trim() || textToGrade === "// No chunks processed yet.") {
+    return next(new AppError("Submission lacks chunks or content. AI Grading skipped.", 400));
+  }
+
+  // 5. Call AI
+  const result = await gradeSubmission({
+    content: textToGrade,
+    rubric: rubricToUse,
+    type: task.task_type === 'QUIZ' ? 'text' : 'file',
+    userId: task.creator_id.toString(),
+  });
+
+  // 6. Update DB
+  const updatedSubmission = await TaskSubmission.findByIdAndUpdate(
+    submission._id,
+    {
+      ai_evaluation: {
+        suggested_grade: result.proposed_grade,
+        feedback: result.feedback,
+        confidence_score: result.confidence,
+        weaknesses: result.weaknesses || [],
+        recommendations: result.recommendations || [],
+        criteria_breakdown: result.criteria_breakdown || [],
+        concept_mastery: result.concept_mastery || [],
+        quality_metrics: result.quality_metrics || { readability: 0, complexity_score: 0, security_guardrails: 0 }
+      },
+      status: "AI_GRADED",
+    },
+    { new: true, strict: false }
+  );
+
+  res.status(200).json({
+    status: "success",
+    message: "AI Evaluation completed successfully",
+    data: { submission: updatedSubmission }
   });
 });

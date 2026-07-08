@@ -4,6 +4,7 @@ import {
   getTaskSubmissions,
   finalizeGrade,
   getMySubmissions,
+  evaluateSubmissionAI,
 } from "./taskSubmittion.controller.js";
 import { protect, authorizeRoles } from "../../middlewares/authMiddleware.js";
 import { validate } from "../../middlewares/validateMiddleware.js";
@@ -47,6 +48,14 @@ router
     authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"),
     validate(finalizeGradeSchema),
     finalizeGrade,
+  );
+
+// 4. On-Demand AI Evaluation Trigger
+router
+  .route("/:submissionId/evaluate-ai")
+  .post(
+    authorizeRoles("ADMIN", "HOD", "INSTRUCTOR"),
+    evaluateSubmissionAI
   );
 
 export default router;
