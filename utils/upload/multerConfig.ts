@@ -20,7 +20,7 @@ const ALLOWED_MIME_TYPES = [
 ];
 
 /** Maximum allowed file size in bytes (5 MB) */
-const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 // ─── Ensure uploads directory exists ─────────────────────────────────────────
 

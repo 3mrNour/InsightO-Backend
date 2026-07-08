@@ -330,7 +330,7 @@ export const getAdminUserById = async (req: Request, res: Response, next: NextFu
 
 export const updateAdminUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { firstName, lastName, email, role, isActive, academicYear, departmentId } = req.body;
+    const { firstName, lastName, email, role, isActive, academicYear, departmentId, password } = req.body;
     const user = await User.findById(req.params.id);
     if (!user) {
       return next(new AppError('User not found', 404));
@@ -342,6 +342,9 @@ export const updateAdminUser = async (req: Request, res: Response, next: NextFun
     if (email !== undefined) user.email = email;
     if (isActive !== undefined) user.isActive = isActive;
     if (role !== undefined) user.role = role;
+    if (password) {
+      user.password = await bcryptjs.hash(password, 10);
+    }
     await user.save();
 
     // If role changed, remove the old profile
