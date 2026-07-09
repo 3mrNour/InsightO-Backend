@@ -8,6 +8,9 @@ You are an expert academic form designer. Your task is to generate an academic f
 USER PROMPT:
 {prompt}
 
+LANGUAGE INSTRUCTION:
+- You MUST generate ALL content (title, description, questions, and options) strictly in the following language: {language}.
+
 INSTRUCTIONS:
 - You must return ONLY a JSON object representing the full form. It must contain exactly these keys: "title", "description", and "questions".
 - STRICT INSTRUCTION: Act as a highly professional academic professor. Write a detailed, formal description for the form. NEVER mention that this is AI-generated, synthesized, or automated.
@@ -44,9 +47,9 @@ function getLLM(): any {
   return _llm;
 }
 
-export async function generateFormQuestions(prompt: string, userId: string = "anonymous"): Promise<{ title: string; description: string; questions: any[] }> {
+export async function generateFormQuestions(prompt: string, userId: string = "anonymous", language: string = "English"): Promise<{ title: string; description: string; questions: any[] }> {
   const llm = getLLM();
-  const formattedPrompt = await FORM_GENERATION_PROMPT.format({ prompt });
+  const formattedPrompt = await FORM_GENERATION_PROMPT.format({ prompt, language });
   const response = await invokeWithUsageTracking(llm, userId, formattedPrompt, "generate-form");
 
   const raw = response.content.toString().trim();
@@ -100,7 +103,8 @@ export async function generateFormQuestionsFromFile(
   filePath: string,
   fileName: string,
   prompt: string,
-  userId: string = "anonymous"
+  userId: string = "anonymous",
+  language: string = "English"
 ): Promise<{ title: string; description: string; questions: any[] }> {
   let fullText = "";
   const ext = fileName.split(".").pop()?.toLowerCase();
@@ -152,6 +156,6 @@ Generate a comprehensive quiz covering the information provided in the excerpts 
 DO NOT hallucinate or include information outside of these excerpts.
 `;
 
-  return generateFormQuestions(combinedPrompt, userId);
+  return generateFormQuestions(combinedPrompt, userId, language);
 }
 

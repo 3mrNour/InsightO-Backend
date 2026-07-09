@@ -202,7 +202,7 @@ export const createSubmission = asyncWrap(async (req: Request, res: Response, ne
  */
 export const createPublicSubmission = asyncWrap(async (req: Request, res: Response, next: NextFunction) => {
   const formId = req.params.formId as string;
-  const { answers } = req.body;
+  const { answers, subject_id } = req.body;
 
   if (!Array.isArray(answers) || answers.length === 0) {
     return next(new AppError("Answers must be a non-empty array", 400));
@@ -226,8 +226,13 @@ export const createPublicSubmission = asyncWrap(async (req: Request, res: Respon
     return next(new AppError("Form is not active", 400));
   }
   
-  if (form.category !== "GENERAL") {
+  if (form.category !== "GENERAL" && form.subject_role !== "FACILITY") {
     return next(new AppError("This form is not publicly accessible.", 403));
+  }
+
+  let finalSubjectId = subject_id;
+  if (!finalSubjectId && form.subject_role === "FACILITY") {
+    finalSubjectId = form.facility_id;
   }
 
   // fetch questions
@@ -261,6 +266,7 @@ export const createPublicSubmission = asyncWrap(async (req: Request, res: Respon
   try {
     const submission = await Submission.create({
       form_id: formId,
+      subject_id: finalSubjectId,
       answers: sanitizedAnswers,
     });
 

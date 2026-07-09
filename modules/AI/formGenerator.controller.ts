@@ -4,7 +4,7 @@ import { AppError } from "../../utils/AppError.js";
 
 export const generateAIForm = async (req: Request, res: Response): Promise<Response> => {
   try {
-    const { prompt } = req.body;
+    const { prompt, language = "English" } = req.body;
 
     if (!prompt || typeof prompt !== "string") {
       return res.status(400).json({
@@ -18,7 +18,7 @@ export const generateAIForm = async (req: Request, res: Response): Promise<Respo
 if (!userId) {
   throw new Error("User ID is required for AI usage tracking");
 }
-    const questions = await generateFormQuestions(prompt, userId);
+    const questions = await generateFormQuestions(prompt, userId, language);
 
     return res.status(200).json({
       message: "Form generated successfully",
@@ -64,6 +64,7 @@ export const generateAIFormFromFileController = async (req: Request, res: Respon
   try {
     const file = req.file;
     const prompt = req.body.prompt || "";
+    const language = req.body.language || "English";
     
     if (!file) {
       return res.status(400).json({
@@ -77,7 +78,7 @@ export const generateAIFormFromFileController = async (req: Request, res: Respon
       throw new Error("User ID is required for AI usage tracking");
     }
 
-    const questions = await generateFormQuestionsFromFile(file.path, file.originalname, prompt, userId);
+    const questions = await generateFormQuestionsFromFile(file.path, file.originalname, prompt, userId, language);
 
     // Clean up file
     await fs.unlink(file.path).catch(console.error);

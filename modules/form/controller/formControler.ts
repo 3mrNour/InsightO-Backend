@@ -138,7 +138,9 @@ export const getFormById = async (req: Request, res: Response, next: NextFunctio
     if (!form) {
       return next(new AppError("Form not found", 404));
     }
-    const isCreator = form.creator_id.toString() === user._id.toString();
+    const isCreator = form.creator_id && (form.creator_id as any)._id 
+      ? (form.creator_id as any)._id.toString() === user._id.toString() 
+      : form.creator_id?.toString() === user._id.toString();
     const isAdmin = ["ADMIN", "HOD"].includes(user.role);
 
     // Check if student has an active task assigned with this form
@@ -260,7 +262,8 @@ export const getPublicFormById = async (req: Request, res: Response, next: NextF
       return next(new AppError("Form not found", 404));
     }
 
-    if (!form.is_active || form.category !== 'GENERAL') {
+    const isPublicCategory = form.category === 'GENERAL' || form.subject_role === 'FACILITY';
+    if (!form.is_active || !isPublicCategory) {
       return next(new AppError("This form is not publicly accessible", 403));
     }
 

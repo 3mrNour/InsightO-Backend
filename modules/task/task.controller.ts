@@ -7,6 +7,7 @@ import { AppError } from "../../utils/AppError.js";
 import { asyncWrap } from "../../middlewares/asyncWrap.js";
 import { broadcastTaskToStudents } from "../../utils/taskNotifier.js";
 import { IngestionService } from "../AI/ingestion.service.js";
+import TaskSubmission from "../taskSubmittion/taskSubmittion.model.js";
 export const createTask = asyncWrap(async (
   req: Request,
   res: Response,
@@ -124,12 +125,20 @@ export const getTasks = asyncWrap(async (
 
   const tasks = await Task.find(query)
     .populate("creator_id", "firstName lastName email")
-    .sort({ createdAt: -1 });
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const tasksWithResponsesCount = await Promise.all(
+    tasks.map(async (task) => {
+      const count = await TaskSubmission.countDocuments({ task_id: task._id });
+      return { ...task, responsesCount: count };
+    })
+  );
 
   res.status(200).json({
     status: "success",
-    count: tasks.length,
-    data: { tasks },
+    count: tasksWithResponsesCount.length,
+    data: { tasks: tasksWithResponsesCount },
   });
 });
 
